@@ -235,11 +235,9 @@ pub fn paginer(
     };
 
     let taille = lignes.len() as usize;
-    let cout_permutation = if taille == 0 {
-        usize::MAX
-    } else {
-        (store.n as usize / taille).saturating_mul(k)
-    };
+    let cout_permutation = (store.n as usize)
+        .checked_div(taille)
+        .map_or(usize::MAX, |c| c.saturating_mul(k));
     if cout_permutation <= taille {
         let tout = taille == store.n as usize;
         return parcourir(permutation, lignes, tout, sens, offset, limite);

@@ -22,7 +22,7 @@ Deux méritent attention :
 - **les conversions numériques** sont écartées parce que les sites concernés sont bornés par le format d'image — mais leur audit manuel a révélé un vrai défaut, le plafond de `generations` contourné par troncature. Passez `make pedantic` de temps en temps ;
 - **`many_single_char_names` et `unreadable_literal`** ne le sont que pour `date.rs`, qui reprend l'algorithme de Hinnant avec ses noms et constantes d'origine.
 
-La version minimale de Rust est fixée par les `let`-chains, stabilisées en 1.88. Un job de CI compile avec cette exacte toolchain.
+La version minimale de Rust est fixée par `roaring`, qui exige 1.90. Un job de CI compile avec cette exacte toolchain.
 
 ## Si vous touchez au moteur de requête
 

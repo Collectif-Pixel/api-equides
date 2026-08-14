@@ -2,7 +2,7 @@
 name = "equides-api"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 description = "API Équidés: API REST ouverte sur les fiches publiques d'équidés de l'IFCE. Service indépendant, non affilié à l'IFCE."
 repository = "https://github.com/Collectif-Pixel/api-equides"
 license = "MIT"

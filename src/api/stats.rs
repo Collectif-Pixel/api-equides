@@ -43,7 +43,7 @@ pub async fn global(State(etat): State<EtatPartage>) -> Result<Response, Erreur>
             nombre: s.bitmap_sexe(code).map_or(0, roaring::RoaringBitmap::len),
         })
         .collect();
-    par_sexe.sort_unstable_by(|a, b| b.nombre.cmp(&a.nombre));
+    par_sexe.sort_unstable_by_key(|t| std::cmp::Reverse(t.nombre));
 
     json(&Global {
         total,

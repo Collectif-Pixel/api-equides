@@ -17,7 +17,7 @@ GET /v1/stats/repartition?dimension=robe&race=Pur%20Sang
 
 ## Démarrage
 
-Prérequis : Rust ≥ 1.88, et l'extraction JSONL à la racine.
+Prérequis : Rust ≥ 1.90, et l'extraction JSONL à la racine.
 
 ```sh
 make donnees    # ingère chevaux.jsonl → data/equides.bin (~15 s)
