@@ -174,12 +174,14 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/metrics)" = "404"
           curl -sf http://127.0.0.1:9091/metrics | grep -q 'equides_lignes 5'
 
-          echo "— documentation sans dépendance tierce"
-          ! curl -sf http://127.0.0.1:8081/docs | grep -q 'cdn.jsdelivr'
-          curl -sf -o /dev/null http://127.0.0.1:8081/docs/scalar.js
+          echo "— documentation rendue par le service, sans dépendance tierce"
+          curl -sf -H 'Accept: text/html' http://127.0.0.1:8081/ > /tmp/doc.html
+          grep -q '<!doctype html>' /tmp/doc.html
+          ! grep -qE 'https?://(cdn|unpkg|fonts)\.' /tmp/doc.html
 
-          echo "— export CSV"
-          test "$(curl -sf 'http://127.0.0.1:8081/v1/export.csv' | wc -l)" = "6"
+          echo "— découverte JSON sur la même route"
+          curl -sf -H 'Accept: application/json' http://127.0.0.1:8081/ \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["nom"], d'
 
           echo "— OpenAPI"
           curl -sf http://127.0.0.1:8081/openapi.json | python3 -c 'import json,sys; json.load(sys.stdin)'

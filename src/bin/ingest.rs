@@ -452,8 +452,7 @@ fn empreinte_fichier(chemin: &Path) -> Result<String> {
 fn aujourdhui_iso() -> String {
     let secondes = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs() as i64);
     equides_api::date::to_iso((secondes / 86_400) as i32)
         .unwrap_or_else(|| "1970-01-01".to_string())
 }
