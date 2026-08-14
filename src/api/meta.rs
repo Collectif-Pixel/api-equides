@@ -2,35 +2,11 @@ use super::EtatPartage;
 use super::equides::json;
 use super::erreur::Erreur;
 use axum::extract::State;
-use axum::http::HeaderMap;
 use axum::http::{StatusCode, header};
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 
-pub async fn racine(
-    State(etat): State<EtatPartage>,
-    entetes: HeaderMap,
-) -> Result<Response, Erreur> {
-    let veut_json = entetes
-        .get(header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|a| a.contains("application/json") && !a.contains("text/html"));
-
-    if !veut_json {
-        let doc = crate::openapi::document(&etat.store);
-        return Ok((
-            [
-                (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-                (
-                    header::CONTENT_SECURITY_POLICY,
-                    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:",
-                ),
-            ],
-            Html(crate::api::docs::rendre(&doc, "https://api-equides.org")),
-        )
-            .into_response());
-    }
-
+pub async fn racine(State(etat): State<EtatPartage>) -> Result<Response, Erreur> {
     json(&serde_json::json!({
         "nom": "API Équidés",
         "version": crate::VERSION,
@@ -38,7 +14,7 @@ pub async fn racine(
                         avec généalogie et indices de performance.",
         "affiliation": "Service indépendant, non affilié à l'IFCE.",
         "lignes": etat.store.n,
-        "documentation": "/ (ou Accept: application/json pour ce document)",
+        "documentation": "https://docs.api-equides.org",
         "openapi": "/openapi.json",
         "endpoints": {
             "recherche": "/v1/equides",

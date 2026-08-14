@@ -21,7 +21,7 @@ Prérequis : Rust ≥ 1.90, et l'extraction JSONL à la racine.
 
 ```sh
 make donnees    # ingère chevaux.jsonl → data/equides.bin (~15 s)
-make servir     # API sur 127.0.0.1:8081, documentation à la racine
+make servir     # API sur 127.0.0.1:8081
 ```
 
 Ingestion : image de **601 Mio**. Démarrage : **4,4 s**, puis **~1,1 Gio** résidents.
@@ -38,7 +38,7 @@ Ingestion : image de **601 Mio**. Démarrage : **4,4 s**, puis **~1,1 Gio** rés
 | `/v1/referentiels/{dimension}` | Valeurs admises par les filtres |
 | `/v1/stats` · `/v1/stats/repartition` | Agrégats et facettes |
 | `/v1/meta` | Provenance, licence, anomalies |
-| `/` | Documentation, ou découverte sur `Accept: application/json` |
+| `/` | Document de découverte : routes servies et gabarits d'URL |
 | `/openapi.json` | Description OpenAPI 3.1 |
 | `/healthz` · `/readyz` | Sondes |
 | `/metrics` | Prometheus — **port d'administration uniquement** |
@@ -51,7 +51,7 @@ Répétable = OU (`?race=A&race=B`), dimensions différentes = ET. Insensible à
 
 **Pagination** : `limite` ≤ 100, `offset` ≤ 10 000. Au-delà, le fichier publié se télécharge — l'extraction en masse ne passe pas par l'API.
 
-**Limites d'usage** : 50 **unités de quota** par seconde et par adresse, rafale de 200, puis `429` avec `Retry-After` ; concurrence dérivée du nombre de cœurs et 5 s par requête, puis `503` ; 64 paramètres et 4 Kio de chaîne de requête ; 8 générations de pedigree ; 2 000 modalités par référentiel. Toutes sont énoncées, avec leur raison d'être, à la racine du service.
+**Limites d'usage** : 50 **unités de quota** par seconde et par adresse, rafale de 200, puis `429` avec `Retry-After` ; concurrence dérivée du nombre de cœurs et 5 s par requête, puis `503` ; 64 paramètres et 4 Kio de chaîne de requête ; 8 générations de pedigree ; 2 000 modalités par référentiel. Toutes sont énoncées, avec leur raison d'être, dans le guide des limites.
 
 Le quota se compte en unités parce que les requêtes ne se valent pas : une sonde pèse 50 octets, un pedigree complet 55 Kio — un facteur 4 400 pour le même prix, si l'on compte les appels. Une unité vaut 16 Kio de réponse estimée, mesurée avant exécution sur la seule URI. Presque tout coûte une unité ; seuls `vue=complet`, les référentiels entiers et les pedigrees profonds paient davantage. Un client qui restait dans le quota en boucle sur `/pedigree` tirait près d'un téraoctet par jour d'une seule adresse.
 
@@ -81,7 +81,7 @@ Ce jeu **contient un vrai graphe** — remonter un pedigree sur cinq génératio
 
 Deux niveaux, une seule source — `/openapi.json`, que le service publie.
 
-**À la racine du service** : une page **rendue par le service lui-même** depuis le document OpenAPI. Aucun script, aucune requête vers un tiers. Elle ne peut structurellement pas décrire autre chose que ce que l'API accepte, et le lecteur ne laisse son adresse à personne. Un navigateur la reçoit, un programme qui envoie `Accept: application/json` reçoit le document de découverte. C'est ce qui a remplacé Scalar (3,5 Mio chargés depuis un CDN).
+**À la racine du service** : un **document de découverte** JSON — routes servies, gabarits d'URL, licence et provenance. Un client qui ne connaît que cette URL y trouve de quoi construire toutes les autres. C'est tout ce que le service publie de lui-même : la documentation destinée aux humains a quitté le binaire.
 
 Les ancres de sa section « Erreurs » sont celles que désigne le champ `type` de chaque réponse d'erreur : un test vérifie que chaque type produit par le code y trouve sa section.
 

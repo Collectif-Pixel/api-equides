@@ -834,38 +834,13 @@ async fn les_entetes_de_securite_sont_poses() {
 }
 
 #[tokio::test]
-async fn la_racine_sert_la_documentation_sans_tiers() {
-    let (statut, entetes, corps) = get("/").await;
-    assert_eq!(statut, StatusCode::OK);
+async fn la_racine_sert_le_document_de_decouverte() {
+    let v = json("/").await;
 
-    assert!(
-        !corps.contains("<script"),
-        "la documentation doit se passer de JavaScript"
-    );
-
-    for origine in corps.match_indices("https://").map(|(i, _)| &corps[i..]) {
-        let hote: String = origine
-            .trim_start_matches("https://")
-            .chars()
-            .take_while(|c| *c != '/' && *c != '\'' && *c != '"')
-            .collect();
-        assert!(
-            hote.ends_with("api-equides.org"),
-            "origine tierce référencée par la documentation : {hote}"
-        );
-    }
-
-    assert!(
-        entetes[header::CONTENT_SECURITY_POLICY]
-            .to_str()
-            .unwrap()
-            .contains("default-src 'none'")
-    );
-
-    assert!(
-        corps.contains("/v1/search"),
-        "la page doit décrire les routes servies"
-    );
+    assert_eq!(v["endpoints"]["autocompletion"], "/v1/search?q=");
+    assert_eq!(v["gabarits_url"]["fiche"], "/v1/equides/{id}");
+    assert!(v["licence_donnees"].is_string());
+    assert_eq!(v["documentation"], "https://docs.api-equides.org");
 }
 
 #[tokio::test]
@@ -885,16 +860,16 @@ async fn document_openapi_servi() {
 }
 
 #[tokio::test]
-async fn la_racine_negocie_entre_documentation_et_decouverte() {
-    let (statut, entetes, corps) = get("/").await;
+async fn la_racine_sert_la_decouverte_quel_que_soit_l_accept() {
+    let (statut, entetes, _) = get_avec("/", vec![("accept", "text/html")]).await;
     assert_eq!(statut, StatusCode::OK);
     assert!(
         entetes[header::CONTENT_TYPE]
             .to_str()
             .unwrap()
-            .contains("text/html")
+            .contains("application/json"),
+        "la racine ne sert plus de page HTML"
     );
-    assert!(corps.starts_with("<!doctype html>"));
 
     let (statut, entetes, corps) = get_avec("/", vec![("accept", "application/json")]).await;
     assert_eq!(statut, StatusCode::OK);
@@ -977,7 +952,11 @@ async fn la_decouverte_n_annonce_que_des_routes_servies() {
 
 #[tokio::test]
 async fn le_type_d_une_erreur_pointe_vers_une_ancre_reelle() {
-    let (_, _, page) = get("/").await;
+    let guide = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/docs/src/content/docs/guides/erreurs.md"
+    ))
+    .expect("le guide des erreurs est versionné avec le service");
 
     for route in [
         "/v1/equides?rase=x",
@@ -987,10 +966,14 @@ async fn le_type_d_une_erreur_pointe_vers_une_ancre_reelle() {
         let (_, _, corps) = get(route).await;
         let v: serde_json::Value = serde_json::from_str(&corps).unwrap();
         let type_ = v["type"].as_str().unwrap();
-        let ancre = type_.trim_start_matches("/#");
         assert!(
-            page.contains(&format!("id=\"{ancre}\"")),
-            "{route} renvoie type={type_}, ancre absente de la documentation"
+            type_.starts_with("https://docs.api-equides.org/guides/erreurs/#"),
+            "{route} renvoie un type qui ne mène nulle part : {type_}"
+        );
+        let ancre = type_.rsplit_once('#').unwrap().1;
+        assert!(
+            guide.contains(&format!("id=\"{ancre}\"")),
+            "{route} renvoie type={type_}, ancre absente du guide publié"
         );
     }
 }

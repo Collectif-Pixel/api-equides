@@ -529,7 +529,7 @@ fn schemas() -> Value {
                                     de faute de frappe.",
                     "example": "vouliez-vous dire `race` ?"
                 },
-                "documentation": { "type": "string", "example": "/" }
+                "documentation": { "type": "string", "example": "https://docs.api-equides.org" }
             }
         },
         "Tranche": {
@@ -980,23 +980,16 @@ pub fn document(store: &Store) -> Value {
             "/": {
                 "get": {
                     "tags": ["Service"],
-                    "summary": "Documentation, ou document de découverte",
-                    "description": "Une seule URL à retenir. La négociation de contenu évite \
-                                    d'avoir à choisir : un navigateur reçoit cette page, un \
-                                    client qui envoie `Accept: application/json` reçoit le \
-                                    document de découverte — routes servies et gabarits d'URL.",
-                    "parameters": [{
-                        "name": "Accept", "in": "header", "required": false,
-                        "description": "`application/json` pour la découverte ; toute autre \
-                                        valeur, ou aucune, sert la documentation en HTML.",
-                        "schema": { "type": "string" },
-                        "example": "application/json"
-                    }],
+                    "summary": "Document de découverte",
+                    "description": "Le point d'entrée : routes servies, gabarits d'URL, \
+                                    licence et provenance. Un client qui ne connaît que cette \
+                                    URL y trouve de quoi construire toutes les autres. La \
+                                    documentation destinée aux humains vit sur \
+                                    <https://docs.api-equides.org>.",
                     "responses": reponses(json!({
                         "200": {
-                            "description": "Documentation HTML, ou document de découverte JSON.",
+                            "description": "Document de découverte.",
                             "content": {
-                                "text/html": { "schema": { "type": "string" } },
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/Decouverte" }
                                 }

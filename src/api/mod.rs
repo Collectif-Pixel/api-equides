@@ -1,4 +1,3 @@
-pub mod docs;
 pub mod equides;
 pub mod erreur;
 pub mod meta;

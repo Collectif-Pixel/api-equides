@@ -11,12 +11,15 @@ pub struct Type {
 
 impl Type {
     pub fn ancre(&self) -> &'static str {
-        self.uri.trim_start_matches("/#")
+        self.uri
+            .rsplit_once('#')
+            .expect("un type porte toujours un fragment")
+            .1
     }
 }
 
 pub static REQUETE_INVALIDE: Type = Type {
-    uri: "/#erreur-requete-invalide",
+    uri: "https://docs.api-equides.org/guides/erreurs/#erreur-requete-invalide",
     titre: "Requête invalide",
     statut: StatusCode::BAD_REQUEST,
     quand: "La requête ne peut pas être traitée telle quelle, sans qu'un paramètre \
@@ -24,7 +27,7 @@ pub static REQUETE_INVALIDE: Type = Type {
 };
 
 pub static PARAMETRE_INVALIDE: Type = Type {
-    uri: "/#erreur-parametre-invalide",
+    uri: "https://docs.api-equides.org/guides/erreurs/#erreur-parametre-invalide",
     titre: "Paramètre invalide",
     statut: StatusCode::BAD_REQUEST,
     quand: "Un paramètre est inconnu, mal typé, hors bornes, ou porte une valeur \
@@ -34,7 +37,7 @@ pub static PARAMETRE_INVALIDE: Type = Type {
 };
 
 pub static INTROUVABLE: Type = Type {
-    uri: "/#erreur-introuvable",
+    uri: "https://docs.api-equides.org/guides/erreurs/#erreur-introuvable",
     titre: "Ressource introuvable",
     statut: StatusCode::NOT_FOUND,
     quand: "L'identifiant ne correspond à aucune fiche du jeu de données, ou la \
@@ -43,7 +46,7 @@ pub static INTROUVABLE: Type = Type {
 };
 
 pub static TROP_DE_REQUETES: Type = Type {
-    uri: "/#erreur-trop-de-requetes",
+    uri: "https://docs.api-equides.org/guides/erreurs/#erreur-trop-de-requetes",
     titre: "Trop de requêtes",
     statut: StatusCode::TOO_MANY_REQUESTS,
     quand: "Le quota de débit de l'adresse appelante est dépassé. La réponse porte \
@@ -51,7 +54,7 @@ pub static TROP_DE_REQUETES: Type = Type {
 };
 
 pub static SERVICE_SURCHARGE: Type = Type {
-    uri: "/#erreur-service-surcharge",
+    uri: "https://docs.api-equides.org/guides/erreurs/#erreur-service-surcharge",
     titre: "Service momentanément surchargé",
     statut: StatusCode::SERVICE_UNAVAILABLE,
     quand: "La capacité de traitement simultané est atteinte, ou la requête a \
@@ -211,7 +214,11 @@ mod tests {
         for (e, statut) in cas {
             assert_eq!(e.corps.status, statut);
             assert_eq!(e.statut.as_u16(), statut);
-            assert!(e.corps.type_.starts_with("/#erreur-"));
+            assert!(
+                e.corps
+                    .type_
+                    .starts_with("https://docs.api-equides.org/guides/erreurs/#erreur-")
+            );
             types.push(e.corps.type_);
         }
         types.sort_unstable();
@@ -250,7 +257,7 @@ mod tests {
     #[test]
     fn l_ancre_est_le_fragment_de_l_uri() {
         for t in CATALOGUE {
-            assert_eq!(t.uri, format!("/#{}", t.ancre()));
+            assert!(t.uri.ends_with(&format!("#{}", t.ancre())));
             assert!(!t.quand.is_empty(), "{} sans description", t.uri);
         }
     }

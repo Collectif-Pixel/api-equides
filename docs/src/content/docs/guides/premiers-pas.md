@@ -81,7 +81,7 @@ curl 'https://api-equides.org/v1/equides?rase=Pur%20Sang'
 
 ```json
 {
-  "type": "/#erreur-parametre-invalide",
+  "type": "https://docs.api-equides.org/guides/erreurs/#erreur-parametre-invalide",
   "title": "Paramètre invalide",
   "status": 400,
   "detail": "paramètre inconnu `rase`",
