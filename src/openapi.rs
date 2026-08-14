@@ -748,8 +748,14 @@ pub fn document(store: &Store) -> Value {
                     "parameters": [
                         { "name": "q", "in": "query", "required": true,
                           "description": "Début de nom, insensible à la casse et aux accents. \
-                                          Obligatoire et non vide.",
-                          "schema": { "type": "string", "minLength": 1 }, "example": "qab" },
+                                          Obligatoire et non vide.\n\n\
+                                          Les espaces comptent : chaque mot déjà saisi doit se \
+                                          retrouver dans le nom, seul le dernier est traité \
+                                          comme un début de mot. `INVICTUS DU F` ne suggère \
+                                          donc que des noms portant `INVICTUS`, `DU`, et un mot \
+                                          commençant par `F`.",
+                          "schema": { "type": "string", "minLength": 1 },
+                          "example": "invictus du f" },
                         { "name": "limite", "in": "query", "required": false,
                           "description": format!(
                               "Nombre de suggestions (1 à {LIMITE_MAX}, défaut \

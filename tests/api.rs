@@ -1096,3 +1096,35 @@ async fn cors_ouvert_pour_la_reutilisation() {
         "*"
     );
 }
+
+#[tokio::test]
+async fn l_autocompletion_tient_compte_des_mots_deja_saisis() {
+    let noms = |v: &serde_json::Value| -> Vec<String> {
+        v["resultats"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["nom"].as_str().unwrap().to_string())
+            .collect()
+    };
+
+    let large = json("/v1/search?q=GRAND").await;
+    assert_eq!(noms(&large).len(), 2, "GRAND désigne deux fiches");
+
+    let precis = json("/v1/search?q=GRAND%20M").await;
+    assert_eq!(
+        noms(&precis),
+        vec!["GRAND MERE"],
+        "le mot déjà saisi doit restreindre la suggestion"
+    );
+
+    let exact = json("/v1/search?q=GRAND%20MERE").await;
+    assert_eq!(noms(&exact), vec!["GRAND MERE"]);
+    assert_eq!(exact["resultats"][0]["score"], 1.0);
+
+    let impossible = json("/v1/search?q=GRAND%20ZZZ").await;
+    assert!(
+        noms(&impossible).is_empty(),
+        "un mot sans correspondance ne suggère rien"
+    );
+}

@@ -24,6 +24,11 @@ Deux routes cherchent par nom, et elles ne servent pas le même usage.
 `/v1/search` classe et borne son coût pour répondre avant la frappe suivante.
 `/v1/equides` filtre et pagine, sans classer.
 
+Les espaces comptent : chaque mot déjà saisi doit figurer dans le nom, seul le
+dernier vaut pour un début de mot. `q=invictus du f` ne suggère donc que des
+noms portant `INVICTUS`, `DU`, et un mot commençant par `F` — c'est ce qui
+permet à un champ de saisie de se resserrer à mesure que l'on tape.
+
 ```sh
 curl 'https://api-equides.org/v1/search?q=qab&limite=5'
 ```

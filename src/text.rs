@@ -88,11 +88,25 @@ impl NameIndex {
 
     pub fn suggerer(&self, query: &str, limite: usize) -> Vec<(u32, f32)> {
         let replie = fold(query);
-        let Some(prefixe) = tokenize(&replie).next() else {
+        let jetons: Vec<&str> = tokenize(&replie).collect();
+        let Some((prefixe, deja_saisis)) = jetons.split_last() else {
             return Vec::new();
         };
 
-        let debut = self.tokens.partition_point(|t| t.as_ref() < prefixe);
+        let mut retenues: Option<RoaringBitmap> = None;
+        for jeton in deja_saisis {
+            let lignes = self.rows_with_prefix(jeton);
+            let restreint = match retenues {
+                None => lignes,
+                Some(acc) => acc & lignes,
+            };
+            if restreint.is_empty() {
+                return Vec::new();
+            }
+            retenues = Some(restreint);
+        }
+
+        let debut = self.tokens.partition_point(|t| t.as_ref() < *prefixe);
         let mut candidats: Vec<(usize, &str)> = self.tokens[debut..]
             .iter()
             .enumerate()
@@ -108,7 +122,7 @@ impl NameIndex {
             if sorties.len() >= limite {
                 break;
             }
-            let score = if *jeton == prefixe {
+            let score = if jeton == prefixe {
                 1.0
             } else {
                 let ecart = (jeton.len() - prefixe.len()) as f32;
@@ -117,6 +131,9 @@ impl NameIndex {
             for row in &self.postings[*i] {
                 if sorties.len() >= limite {
                     break;
+                }
+                if retenues.as_ref().is_some_and(|r| !r.contains(row)) {
+                    continue;
                 }
                 if vus.insert(row) {
                     sorties.push((row, score));
@@ -206,6 +223,45 @@ mod tests {
             idx.search("ELDORÀDO").unwrap().iter().collect::<Vec<_>>(),
             vec![4]
         );
+    }
+
+    fn noms(idx: &NameIndex, requete: &str) -> Vec<u32> {
+        let mut lignes: Vec<u32> = idx
+            .suggerer(requete, 10)
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect();
+        lignes.sort_unstable();
+        lignes
+    }
+
+    #[test]
+    fn suggestion_sur_un_seul_jeton() {
+        let idx = index_test();
+        assert_eq!(noms(&idx, "GRAND"), vec![0, 3]);
+        assert_eq!(noms(&idx, "BRIG"), vec![0, 1]);
+    }
+
+    #[test]
+    fn les_mots_deja_saisis_restreignent_la_suggestion() {
+        let idx = index_test();
+        assert_eq!(noms(&idx, "GRAND F"), vec![3]);
+        assert_eq!(noms(&idx, "GRAND BRIG"), vec![0]);
+        assert_eq!(noms(&idx, "FELIX GRAND"), vec![3]);
+    }
+
+    #[test]
+    fn un_mot_saisi_sans_correspondance_ne_suggere_rien() {
+        let idx = index_test();
+        assert!(noms(&idx, "GRAND ZZZ").is_empty());
+        assert!(noms(&idx, "ZZZ GRAND").is_empty());
+    }
+
+    #[test]
+    fn le_dernier_mot_reste_un_prefixe() {
+        let idx = index_test();
+        assert_eq!(noms(&idx, "GRAND FEL"), vec![3]);
+        assert_eq!(noms(&idx, "GRAND FELIX"), vec![3]);
     }
 
     #[test]
