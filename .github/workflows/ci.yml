@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  verifier:
+    name: Format, lint et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked
+
+      - name: Tests
+        run: cargo test --locked
+
+  msrv:
+    name: Version minimale de Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+      - name: Compiler avec la version minimale annoncée
+        run: cargo check --all-targets --locked
+
+  audit:
+    name: Vulnérabilités des dépendances
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Installer cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Auditer
+        run: cargo audit --deny warnings
+
+  securite:
+    name: Vulnérabilités, secrets et configuration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Analyser le dépôt
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: sarif
+          output: trivy.sarif
+
+      - name: Publier dans l'onglet Sécurité
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: trivy.sarif
+
+      - name: Refuser une vulnérabilité haute ou critique
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+  ingestion:
+    name: Ingestion de bout en bout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Construire les binaires
+        run: cargo build --release --locked
+
+      - name: Produire un JSONL d'échantillon
+        run: |
+          cat > echantillon.jsonl <<'JSONL'
+          {"id":"AAAAAAAAAAAAAAAAAAAAAA","slug":"grand-pere","nom":"GRAND PERE","url":"https://infochevaux.ifce.fr/fr/grand-pere-AAAAAAAAAAAAAAAAAAAAAA/infos-generales","race":"Trotteur Francais","sexe":"Male","robe":"Bai","annee_naissance":1990}
+          {"id":"BBBBBBBBBBBBBBBBBBBBBA","slug":"grand-mere","nom":"GRAND MERE","url":"https://infochevaux.ifce.fr/fr/grand-mere-BBBBBBBBBBBBBBBBBBBBBA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Alezan","annee_naissance":1992}
+          {"id":"CCCCCCCCCCCCCCCCCCCCCA","slug":"pere","nom":"PERE","url":"https://infochevaux.ifce.fr/fr/pere-CCCCCCCCCCCCCCCCCCCCCA/infos-generales","race":"Trotteur Francais","sexe":"Male","robe":"Bai","annee_naissance":2005,"filiation_texte":"Par GRAND PERE TF et GRAND MERE TF","pere":{"id":"AAAAAAAAAAAAAAAAAAAAAA","nom":"GRAND PERE","race":"TF","pays":null,"alias":null},"mere":{"id":"BBBBBBBBBBBBBBBBBBBBBA","nom":"GRAND MERE","race":"TF","pays":null,"alias":null}}
+          {"id":"EEEEEEEEEEEEEEEEEEEEEA","slug":"eldorado","nom":"ELDORÀDO","url":"https://infochevaux.ifce.fr/fr/eldorado-EEEEEEEEEEEEEEEEEEEEEA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Bai","annee_naissance":2015,"pere":{"id":"CCCCCCCCCCCCCCCCCCCCCA","nom":"PERE","race":"TF","pays":"IRLANDE","alias":null},"performances":[{"discipline":"TROT COURSE","texte":"BTR +59 (0.35)","indices":[{"code":"BTR","valeur":"+59","coefficient":0.35,"annee":null,"appreciation":"indice-satisfaisant"}]}]}
+          {"id":"FFFFFFFFFFFFFFFFFFFFFA","slug":"orphelin","nom":"ORPHELIN","url":"https://infochevaux.ifce.fr/fr/orphelin-FFFFFFFFFFFFFFFFFFFFFA/infos-generales","race":"Pur Sang","sexe":"Hongre","annee_naissance":2020,"pere":{"id":"ZZZZZZZZZZZZZZZZZZZZZA","nom":"PERE INTROUVABLE","race":"PS","pays":null,"alias":null}}
+          JSONL
+
+      - name: Ingérer
+        run: |
+          ./target/release/equides-ingest \
+            --source echantillon.jsonl \
+            --sortie data/equides.bin \
+            --licence "Échantillon de test"
+
+      - name: Démarrer l'API et vérifier les endpoints
+        run: |
+          ./target/release/equides-api \
+            --image data/equides.bin \
+            --adresse 127.0.0.1:8081 \
+            --adresse-admin 127.0.0.1:9091 &
+          for _ in $(seq 30); do
+            curl -sf http://127.0.0.1:8081/healthz > /dev/null && break
+            sleep 1
+          done
+
+          echo "— sonde"
+          curl -sf http://127.0.0.1:8081/healthz | grep -q '"statut":"ok"'
+
+          echo "— comptage"
+          test "$(curl -sf 'http://127.0.0.1:8081/v1/equides' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "5"
+
+          echo "— les listes servent un résumé"
+          curl -sf 'http://127.0.0.1:8081/v1/equides?limite=1' \
+            | python3 -c 'import json,sys; e=json.load(sys.stdin)["donnees"][0]; \
+              assert "performances" not in e and "href" not in e, e'
+
+          echo "— recherche insensible aux accents"
+          test "$(curl -sf 'http://127.0.0.1:8081/v1/equides?nom=eldorado' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "1"
+
+          echo "— pedigree sur deux générations, sans requête supplémentaire"
+          curl -sf 'http://127.0.0.1:8081/v1/equides/EEEEEEEEEEEEEEEEEEEEEA/pedigree?generations=2' \
+            | python3 -c 'import json,sys; a=json.load(sys.stdin)["arbre"]; \
+              assert a["pere"]["pere"]["nom"] == "GRAND PERE", a'
+
+          echo "— la race du parent vient du lien, pas de sa fiche"
+          curl -sf 'http://127.0.0.1:8081/v1/equides/EEEEEEEEEEEEEEEEEEEEEA' \
+            | python3 -c 'import json,sys; p=json.load(sys.stdin)["pere"]; \
+              assert p["race"] == "TF" and p["pays"] == "IRLANDE", p'
+
+          echo "— un lien rompu reste exposé sans identifiant"
+          curl -sf 'http://127.0.0.1:8081/v1/equides/FFFFFFFFFFFFFFFFFFFFFA' \
+            | python3 -c 'import json,sys; p=json.load(sys.stdin)["pere"]; \
+              assert p["nom"] == "PERE INTROUVABLE" and p["fiche_disponible"] is False, p'
+
+          echo "— filtre par code d'indice"
+          test "$(curl -sf 'http://127.0.0.1:8081/v1/equides?indice=BTR' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "1"
+
+          echo "— erreur au format RFC 9457"
+          curl -s -D- -o /tmp/corps 'http://127.0.0.1:8081/v1/equides?race=Licorne' \
+            | grep -qi 'content-type: application/problem+json'
+          python3 -c 'import json; d=json.load(open("/tmp/corps")); \
+            assert d["status"] == 400 and d["parametre"] == "race", d'
+
+          echo "— télémétrie hors du port public"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/metrics)" = "404"
+          curl -sf http://127.0.0.1:9091/metrics | grep -q 'equides_lignes 5'
+
+          echo "— documentation sans dépendance tierce"
+          ! curl -sf http://127.0.0.1:8081/docs | grep -q 'cdn.jsdelivr'
+          curl -sf -o /dev/null http://127.0.0.1:8081/docs/scalar.js
+
+          echo "— export CSV"
+          test "$(curl -sf 'http://127.0.0.1:8081/v1/export.csv' | wc -l)" = "6"
+
+          echo "— OpenAPI"
+          curl -sf http://127.0.0.1:8081/openapi.json | python3 -c 'import json,sys; json.load(sys.stdin)'

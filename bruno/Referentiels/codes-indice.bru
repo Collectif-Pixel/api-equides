@@ -1,0 +1,33 @@
+meta {
+  name: Codes d'indice
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/v1/referentiels/codes_indice
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("est trié du plus fréquent au plus rare", function() {
+    const n = res.getBody().donnees.map(function(m) { return m.nombre; });
+    for (let i = 1; i < n.length; i++) expect(n[i] <= n[i - 1]).to.equal(true);
+  });
+}
+
+docs {
+  Les 19 codes d'indice de performance : BTR (524 354 équidés),
+  ISO (381 506), ITR (185 037), BSO, IPO, IDR, ICC, BDR…
+
+  Utilisable comme filtre : `?indice=ISO` restreint aux équidés portant un
+  indice de saut d'obstacles.
+
+  Ce filtre a été ajouté après un audit : les codes existaient dans la
+  donnée mais n'étaient ni indexés ni interrogeables.
+}

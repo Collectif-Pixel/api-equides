@@ -1,0 +1,31 @@
+meta {
+  name: Sexes
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/v1/referentiels/sexes
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("est trié du plus fréquent au plus rare", function() {
+    const n = res.getBody().donnees.map(function(m) { return m.nombre; });
+    for (let i = 1; i < n.length; i++) expect(n[i] <= n[i - 1]).to.equal(true);
+  });
+}
+
+docs {
+  Quatre valeurs : `Femelle` (2 467 020), `Male` (1 242 412),
+  `Hongre` (737 063) et `Indeter` (143).
+
+  Notez l'orthographe de la source : `Male` sans accent circonflexe,
+  `Indeter` abrégé. Les filtres étant insensibles à la casse et aux accents,
+  `?sexe=mâle` fonctionne malgré tout.
+}

@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version et notes de version
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.publication.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Installer semantic-release
+        run: |
+          npm install --no-save \
+            semantic-release@25 \
+            @semantic-release/changelog@7 \
+            @semantic-release/exec@7 \
+            @semantic-release/git@11 \
+            conventional-changelog-conventionalcommits@10
+
+      - name: Publier
+        id: publication
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploiement:
+    name: Déploiement
+    needs: version
+    if: needs.version.outputs.version != ''
+    uses: ./.github/workflows/deploy.yml
+    with:
+      reference: v${{ needs.version.outputs.version }}
+    secrets: inherit

@@ -1,0 +1,31 @@
+meta {
+  name: Racine — découverte
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("publie les gabarits d'URL", function() {
+    const g = res.getBody().gabarits_url;
+    expect(g.fiche).to.equal("/v1/equides/{id}");
+    expect(g.pedigree).to.equal("/v1/equides/{id}/pedigree");
+  });
+}
+
+docs {
+  Point d'entrée : endpoints, volumétrie, licence, et **gabarits d'URL**.
+
+  Ces gabarits sont publiés ici une fois pour toutes, ce qui dispense les
+  réponses de répéter un lien déductible d'un identifiant — une quarantaine
+  d'octets par ligne de liste, pour zéro information.
+}

@@ -1,0 +1,84 @@
+:root {
+  --sl-color-accent-low: #14243f;
+  --sl-color-accent: #1a5fd0;
+  --sl-color-accent-high: #b5cdf5;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d3e1fa;
+  --sl-color-accent: #0b57d0;
+  --sl-color-accent-high: #10315f;
+}
+
+@media (min-width: 50rem) {
+  .hero:not(:has(img, .hero-html)) {
+    grid-template-columns: 100%;
+    max-width: 52rem;
+    margin-inline: auto;
+    padding-block: clamp(3rem, calc(1rem + 7vmin), 6rem);
+  }
+
+  .hero:not(:has(img, .hero-html)) .stack {
+    text-align: center;
+  }
+
+  .hero:not(:has(img, .hero-html)) .copy {
+    align-items: center;
+  }
+
+  .hero:not(:has(img, .hero-html)) .actions {
+    justify-content: center;
+  }
+}
+
+.card-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 50rem) {
+  .card-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.card-grid > .card {
+  min-width: 0;
+}
+
+.soutiens {
+  margin-top: 4rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--sl-color-hairline);
+  text-align: center;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+
+.soutiens p {
+  margin: 0 0 0.5rem;
+}
+
+.soutiens > p:last-child {
+  margin: 1.25rem 0 0;
+}
+
+.logo-soutien {
+  display: inline-flex;
+  margin-top: 0.75rem;
+}
+
+.logo-soutien img {
+  width: 13rem;
+  max-width: 100%;
+  height: auto;
+}
+
+.sl-markdown-content table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.sl-markdown-content table code {
+  white-space: nowrap;
+}

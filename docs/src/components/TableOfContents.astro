@@ -1,0 +1,89 @@
+---
+import Default from '@astrojs/starlight/components/TableOfContents.astro'
+
+const surRemerciements = Astro.url.pathname.replace(/\/$/, '').endsWith('/remerciements')
+---
+
+<Default><slot /></Default>
+
+{
+  !surRemerciements && (
+    <div class="soutiens-cote">
+      <p class="titre">Ils soutiennent le service</p>
+
+      <a class="logo" href="https://clever.cloud/">
+        <img
+          src="/clever-cloud.svg"
+          alt="Clever Cloud"
+          width="200"
+          height="52"
+          class="dark:sl-hidden"
+        />
+        <img
+          src="/clever-cloud-sombre.svg"
+          alt="Clever Cloud"
+          width="200"
+          height="52"
+          class="light:sl-hidden"
+        />
+      </a>
+
+      <a class="place" href="/remerciements/">
+        <span class="cadre">Votre logo</span>
+        <span class="appel">Sponsoriser l'API</span>
+      </a>
+    </div>
+  )
+}
+
+<style>
+  .soutiens-cote {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--sl-color-hairline);
+  }
+
+  .titre {
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-h5);
+    font-weight: 600;
+    line-height: var(--sl-line-height-headings);
+    margin-bottom: 0.75rem;
+  }
+
+  .logo img {
+    width: 100%;
+    max-width: 10rem;
+    height: auto;
+  }
+
+  .place {
+    margin-top: 1.25rem;
+  }
+
+  .cadre {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 10rem;
+    height: 3.25rem;
+    border: 1px dashed var(--sl-color-gray-4);
+    border-radius: 0.375rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+  }
+
+  .appel {
+    display: block;
+    max-width: 10rem;
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-accent);
+  }
+
+  .place:hover .cadre {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+</style>

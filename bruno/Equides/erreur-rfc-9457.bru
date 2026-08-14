@@ -1,0 +1,49 @@
+meta {
+  name: Erreur — format RFC 9457
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{base_url}}/v1/equides?race=Licorne
+  body: none
+  auth: none
+}
+
+params:query {
+  race: Licorne
+}
+
+tests {
+  test("répond 400 et non un résultat vide", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("le type de média est celui de la RFC 9457", function() {
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+  });
+
+  test("les champs normalisés sont présents", function() {
+    ["type", "title", "status", "detail"].forEach(function(c) {
+      expect(res.getBody()[c]).to.not.equal(undefined);
+    });
+    expect(res.getBody().status).to.equal(400);
+  });
+
+  test("les extensions nomment le paramètre fautif", function() {
+    expect(res.getBody().parametre).to.equal("race");
+    expect(res.getBody().indice).to.contain("/v1/referentiels/races");
+  });
+}
+
+docs {
+  Une valeur de filtre inconnue renvoie **400**, pas une liste vide : un
+  résultat vide serait ambigu, l'appelant ne pouvant distinguer « cette race
+  n'existe pas » de « aucun équidé ne correspond ».
+
+  Le corps suit la [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
+  (`type`, `title`, `status`, `detail`), servi en `application/problem+json`,
+  avec les extensions `parametre` et `indice` que la RFC autorise.
+
+  Un client générique sait donc lire cette erreur sans connaître l'API.
+}

@@ -1,0 +1,46 @@
+meta {
+  name: Répartition filtrée
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/v1/stats/repartition?dimension=robe&race=Pur%20Sang&limite=10
+  body: none
+  auth: none
+}
+
+params:query {
+  dimension: robe
+  race: Pur Sang
+  limite: 10
+  ~sexe: Femelle
+  ~annee_min: 2010
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("la répartition porte sur la sélection filtrée", function() {
+    const b = res.getBody();
+    expect(b.effectif_filtre).to.be.above(0);
+    expect(b.effectif_filtre).to.be.below(4000000);
+  });
+
+  test("les tranches sont décroissantes", function() {
+    const n = res.getBody().donnees.map(function(t) { return t.nombre; });
+    for (let i = 1; i < n.length; i++) expect(n[i] <= n[i - 1]).to.equal(true);
+  });
+}
+
+docs {
+  Les répartitions acceptent **exactement les mêmes filtres que la recherche**.
+
+  `dimension` accepte : `race`, `robe`, `sexe`, `discipline`, `annee_naissance`. Cette dernière est rendue en entier et par ordre
+  chronologique.
+
+  Le naisseur ne figure pas parmi les dimensions : ce champ personnel a été
+  retiré du jeu de données.
+}

@@ -1,0 +1,25 @@
+{
+  "name": "api-equides-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Documentation de l'API Équidés, construite depuis son document OpenAPI.",
+  "license": "MIT",
+  "scripts": {
+    "sync": "node sync-openapi.mjs",
+    "dev": "astro dev",
+    "build": "npm run sync && astro build",
+    "build:hors-ligne": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.7",
+    "astro": "^7.2.2",
+    "sharp": "^0.35.3",
+    "starlight-openapi": "^0.26.1"
+  },
+  "overrides": {
+    "form-data": "^4.0.6"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "API Équidés",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

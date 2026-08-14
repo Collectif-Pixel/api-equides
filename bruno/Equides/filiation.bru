@@ -1,0 +1,48 @@
+meta {
+  name: Filiation et race de lien
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/v1/equides/Z4ogLhlkS2CeUdq0bZ0YFw
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("les parents portent une race propre, pas un chrono", function() {
+    const p = res.getBody().pere;
+    expect(p).to.be.an("object");
+    expect(p.race).to.not.match(/\d+'\d+/);
+  });
+
+  test("chaque parent dit si sa fiche est disponible", function() {
+    ["pere", "mere", "pere_de_mere"].forEach(function(k) {
+      const p = res.getBody()[k];
+      if (p) expect(p.fiche_disponible).to.be.a("boolean");
+    });
+  });
+}
+
+docs {
+  ## Pourquoi la race d'un parent n'est pas celle de sa fiche
+
+  Le champ `race` d'une fiche est pollué : sur 11 747 valeurs distinctes, une
+  part sont des **chronos de course** — `1'10"2 (ASC6H)` — et non des races.
+
+  La race portée par le **lien de filiation**, elle, n'en prend que 198,
+  toutes propres (`TF`, `TE`, `PS`…). C'est celle qu'expose l'API pour les
+  parents. Résoudre la race d'un parent via le graphe reviendrait à jeter la
+  donnée nette pour en dériver une polluée.
+
+  ## Liens rompus
+
+  568 parents sont référencés sans que leur fiche figure au jeu de données.
+  Ils restent exposés avec le nom que la source en donne, sans `id`, et
+  `fiche_disponible: false` — les escamoter perdrait une filiation connue.
+}

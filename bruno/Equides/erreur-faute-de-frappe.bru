@@ -1,0 +1,37 @@
+meta {
+  name: Erreur — faute de frappe
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{base_url}}/v1/equides?rase=Pur%20Sang
+  body: none
+  auth: none
+}
+
+params:query {
+  rase: Pur Sang
+}
+
+tests {
+  test("répond 400", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+
+  test("suggère la correction", function() {
+    expect(res.getBody().indice).to.contain("`race`");
+  });
+}
+
+docs {
+  Un paramètre non reconnu est **rejeté**, avec une suggestion calculée par
+  distance d'édition combinée à une détection de préfixe.
+
+  Sans ce contrôle, `?rase=Pur Sang` renverrait silencieusement les 4,4 M de
+  fiches : trompeur pour l'appelant, coûteux pour le service, et d'autant plus
+  pernicieux que la réponse aurait l'air parfaitement valide.
+
+  `?annee=2015` suggère `annee_naissance`, `?xyzzy=1` ne suggère rien — mieux
+  vaut se taire que d'orienter vers un paramètre sans rapport.
+}

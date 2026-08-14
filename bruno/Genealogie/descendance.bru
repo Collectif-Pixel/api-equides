@@ -1,0 +1,38 @@
+meta {
+  name: Descendance
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/v1/equides/{{equide_id}}/descendance?limite=20
+  body: none
+  auth: none
+}
+
+params:query {
+  limite: 20
+  ~offset: 0
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("identifie le parent et compte ses produits", function() {
+    expect(res.getBody().parent.id).to.equal(bru.getVar("equide_id"));
+    expect(res.getBody().total).to.be.a("number");
+  });
+}
+
+docs {
+  Réponse symétrique au pedigree, servie par un **index inverse** bâti au
+  chargement en disposition CSR (bornes + arêtes contiguës).
+
+  `Vec<Vec<u32>>` aurait coûté 24 octets d'en-tête et une allocation par
+  parent, soit plus de 100 Mio de surcoût pour 1,2 million de parents.
+
+  Essayez sur un étalon reproducteur plutôt que sur un poulain : la
+  descendance d'un jeune équidé est vide.
+}

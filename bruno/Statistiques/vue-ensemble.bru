@@ -1,0 +1,35 @@
+meta {
+  name: Vue d'ensemble
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/v1/stats
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("les effectifs sont cohérents", function() {
+    const s = res.getBody();
+    expect(s.avec_performances + s.sans_performances).to.equal(s.total);
+    expect(s.avec_filiation + s.sans_filiation).to.equal(s.total);
+  });
+
+  test("avertit sur l'interprétation des performances", function() {
+    expect(res.getBody().avertissement).to.contain("concouru");
+  });
+}
+
+docs {
+  Vue d'ensemble : 4 446 638 fiches, dont 24,9 % portent des performances et
+  72,8 % une filiation.
+
+  Le champ `avertissement` rappelle que « sans performances » signifie
+  qu'aucun indice n'est **publié**, non que l'équidé n'a jamais concouru.
+}

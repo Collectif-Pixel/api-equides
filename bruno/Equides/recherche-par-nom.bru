@@ -1,0 +1,43 @@
+meta {
+  name: Recherche par nom
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/v1/equides?nom=qabalah&limite=10
+  body: none
+  auth: none
+}
+
+params:query {
+  nom: qabalah
+  limite: 10
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trouve des résultats malgré la casse", function() {
+    expect(res.getBody().pagination.total).to.be.above(0);
+  });
+
+  test("chaque nom contient le terme recherché", function() {
+    res.getBody().donnees.forEach(function(e) {
+      const n = e.nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      expect(n).to.contain("QABALAH");
+    });
+  });
+}
+
+docs {
+  Index inversé sur 766 158 jetons distincts.
+
+  Chaque mot de la requête est traité comme un **préfixe**, et **tous** doivent
+  être présents : `qabalah mer` retrouve « QABALAH MERCURY ».
+
+  Tout est replié en ASCII majuscule avant indexation comme avant recherche,
+  donc `eldorado`, `ELDORADO` et `ELDORÀDO` donnent le même résultat.
+}

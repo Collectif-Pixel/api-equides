@@ -1,0 +1,61 @@
+meta {
+  name: Recherche simple
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/v1/equides?limite=20
+  body: none
+  auth: none
+}
+
+params:query {
+  limite: 20
+  ~vue: complet
+  ~tri: -annee
+}
+
+script:post-response {
+  const d = res.getBody().donnees;
+  if (d && d.length > 0) bru.setVar("equide_id", d[0].id);
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("annonce les 4,4 millions de fiches", function() {
+    expect(res.getBody().pagination.total).to.be.above(4000000);
+  });
+
+  test("les listes servent un résumé, pas la fiche entière", function() {
+    const e = res.getBody().donnees[0];
+    expect(e.id).to.be.a("string");
+    expect(e.nom).to.be.a("string");
+    ["pere", "mere", "performances", "filiation_texte", "url", "href"].forEach(function(lourd) {
+      expect(e[lourd]).to.equal(undefined);
+    });
+  });
+
+  test("est cacheable", function() {
+    expect(res.getHeader("etag")).to.be.a("string");
+    expect(res.getHeader("cache-control")).to.contain("max-age=3600");
+  });
+
+  test("porte les en-têtes de sécurité", function() {
+    expect(res.getHeader("x-content-type-options")).to.equal("nosniff");
+    expect(res.getHeader("referrer-policy")).to.equal("no-referrer");
+  });
+}
+
+docs {
+  Recherche sans filtre. Les lignes sont des **résumés** : ~150 octets contre
+  ~1,1 Kio pour une fiche complète, soit huit fois moins sur une page de 200.
+
+  Cochez `vue=complet` pour retrouver les fiches entières.
+
+  Aucun `href` n'est renvoyé : l'URL de la fiche se déduit de l'`id`, et le
+  gabarit est publié une fois par `GET /`.
+}

@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "app_id": "app_de869e5f-04a5-4440-94fa-d8b12d081f0e",
+      "org_id": "orga_663a0ad4-69b3-44ff-a6ba-23e028b1606e",
+      "deploy_url": "https://push-n3-par-clevercloud-customers.services.clever-cloud.com/app_de869e5f-04a5-4440-94fa-d8b12d081f0e.git",
+      "git_ssh_url": "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_de869e5f-04a5-4440-94fa-d8b12d081f0e.git",
+      "name": "API Équidés",
+      "alias": "API-Equides"
+    }
+  ]
+}

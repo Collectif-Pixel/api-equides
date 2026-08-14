@@ -1,0 +1,61 @@
+meta {
+  name: Métadonnées et qualité
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/v1/meta
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("trace précisément la donnée servie", function() {
+    const jd = res.getBody().jeu_de_donnees;
+    expect(jd.empreinte_source).to.be.a("string");
+    expect(jd.url_modele).to.contain("{slug}");
+  });
+
+  test("expose les anomalies relevées", function() {
+    const a = res.getBody().jeu_de_donnees.anomalies;
+    expect(a.parents_pendants).to.be.a("number");
+    expect(a.annee_naissance_min).to.be.a("number");
+  });
+
+  test("le régime de réutilisation est explicite", function() {
+    const r = JSON.stringify(res.getBody().remarques);
+    expect(r).to.contain("L321-1");
+  });
+
+  test("le retrait des données personnelles est documenté", function() {
+    expect(JSON.stringify(res.getBody().remarques)).to.contain("naisseur");
+  });
+}
+
+docs {
+  Provenance, licence et **qualité** de la donnée servie.
+
+  `empreinte_source` est le blake3 du fichier ingéré : il identifie
+  exactement ce qui est servi, utile pour reproduire un résultat ou signaler
+  un bug.
+
+  ## Réutilisation
+
+  L'IFCE étant un **établissement public administratif**, l'article L321-1 du
+  CRPA ouvre la réutilisation de ses informations publiques, et l'article
+  L321-3 lui interdit d'opposer le droit *sui generis* du producteur de base
+  de données.
+
+  Obligation en contrepartie (art. L322-1) : mentionner la source et la date
+  de mise à jour — d'où les champs `source`, `ingere_le` et `empreinte_source`.
+
+  ## Données personnelles
+
+  Le champ `naisseur` a été retiré à l'ingestion : 359 108 noms de personnes
+  physiques, que l'IFCE exclut lui-même de ses webservices.
+}

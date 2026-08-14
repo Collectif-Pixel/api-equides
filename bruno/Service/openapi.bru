@@ -1,0 +1,40 @@
+meta {
+  name: Description OpenAPI
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/openapi.json
+  body: none
+  auth: none
+}
+
+tests {
+  test("est un document OpenAPI 3.1", function() {
+    expect(res.getBody().openapi).to.equal("3.1.0");
+  });
+
+  test("décrit tous les endpoints publics", function() {
+    const p = Object.keys(res.getBody().paths);
+    ["/v1/equides", "/v1/equides/{id}", "/v1/equides/{id}/pedigree",
+     "/v1/equides/{id}/descendance", "/v1/export.csv"].forEach(function(c) {
+      expect(p).to.contain(c);
+    });
+  });
+
+  test("le filtre indice est documenté", function() {
+    const noms = res.getBody().paths["/v1/equides"].get.parameters.map(function(x) { return x.name; });
+    expect(noms).to.contain("indice");
+  });
+}
+
+docs {
+  Description écrite à la main plutôt que dérivée par macros : les paramètres
+  répétables ne se dérivent pas d'une structure Rust, et les exemples sont
+  calculés depuis le jeu réellement chargé.
+
+  Un test Rust (`les_parametres_documentes_sont_exactement_ceux_acceptes`)
+  ferme l'écart entre cette description et le code. Dès sa première
+  exécution, il a révélé que le filtre `indice` n'était pas documenté.
+}

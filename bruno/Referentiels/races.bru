@@ -1,0 +1,32 @@
+meta {
+  name: Races (fiches — polluées)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/v1/referentiels/races
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("est trié du plus fréquent au plus rare", function() {
+    const n = res.getBody().donnees.map(function(m) { return m.nombre; });
+    for (let i = 1; i < n.length; i++) expect(n[i] <= n[i - 1]).to.equal(true);
+  });
+}
+
+docs {
+  Les races telles qu'elles figurent sur les **fiches**.
+
+  ⚠️ **11 747 valeurs, dont une part ne sont pas des races** mais des chronos
+  de course (`1'10"2 (ASC6H)`). C'est un défaut de la source, signalé par
+  `/v1/meta` et non corrigé ici.
+
+  Pour une liste propre, voir le référentiel « Races de lien ».
+}

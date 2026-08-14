@@ -1,0 +1,55 @@
+meta {
+  name: Pedigree
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/v1/equides/{{equide_id}}/pedigree?generations=5
+  body: none
+  auth: none
+}
+
+params:query {
+  generations: 5
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("l'arbre est enraciné sur le sujet", function() {
+    expect(res.getBody().arbre.generation).to.equal(0);
+    expect(res.getBody().generations).to.equal(5);
+  });
+
+  test("distingue les ancêtres connus des ancêtres théoriques", function() {
+    const b = res.getBody();
+    expect(b.noeuds_theoriques).to.equal(63);
+    expect(b.noeuds).to.be.at.most(b.noeuds_theoriques);
+  });
+
+  test("répond en une seule requête", function() {
+    expect(res.getResponseTime()).to.be.below(200);
+  });
+}
+
+docs {
+  **C'est l'endpoint qui justifie de ne pas être passé à GraphQL.**
+
+  Remonter un pedigree en REST naïf coûterait une requête par ancêtre, soit
+  31 allers-retours sur cinq générations. Ici : une seule requête, cacheable,
+  au coût borné et connu d'avance.
+
+  La filiation étant résolue en **indices de ligne** dès l'ingestion — le
+  graphe est fermé à 99,99 % — chaque remontée est une simple lecture de
+  tableau, sans recherche par identifiant.
+
+  `noeuds` compte les ancêtres réellement connus, `noeuds_theoriques` ceux
+  qu'un pedigree complet compterait (2^(n+1) − 1). L'écart entre les deux
+  mesure la complétude de la filiation.
+
+  Profondeur plafonnée à 10 : un pedigree double de taille à chaque
+  génération.
+}

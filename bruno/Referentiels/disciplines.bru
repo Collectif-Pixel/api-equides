@@ -1,0 +1,30 @@
+meta {
+  name: Disciplines
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/v1/referentiels/disciplines
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("est trié du plus fréquent au plus rare", function() {
+    const n = res.getBody().donnees.map(function(m) { return m.nombre; });
+    for (let i = 1; i < n.length; i++) expect(n[i] <= n[i - 1]).to.equal(true);
+  });
+}
+
+docs {
+  Les 14 disciplines pour lesquelles des performances sont publiées :
+  TROT COURSE, SAUT D'OBSTACLES, PONEY OBSTACLE, CONCOURS COMPLET,
+  DRESSAGE, ENDURANCE…
+
+  Utilisable comme filtre : `?discipline=TROT COURSE`.
+}

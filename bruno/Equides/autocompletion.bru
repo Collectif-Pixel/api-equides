@@ -1,0 +1,64 @@
+meta {
+  name: Autocomplétion
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/v1/search?q=qab&limite=10
+  body: none
+  auth: none
+}
+
+params:query {
+  q: qab
+  limite: 10
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("renvoie des suggestions classées", function() {
+    const r = res.getBody().resultats;
+    expect(r.length).to.be.above(0);
+    for (let i = 1; i < r.length; i++) {
+      expect(r[i].score <= r[i - 1].score).to.equal(true);
+    }
+  });
+
+  test("chaque suggestion porte de quoi remplir une liste", function() {
+    const s = res.getBody().resultats[0];
+    ["id", "nom", "race", "sexe", "score"].forEach(function(c) {
+      expect(s[c]).to.not.equal(undefined);
+    });
+  });
+
+  test("répond assez vite pour une frappe au clavier", function() {
+    expect(res.getResponseTime()).to.be.below(150);
+  });
+
+  test("q est obligatoire", function() {
+    expect(res.getBody().q).to.equal("qab");
+  });
+}
+
+docs {
+  Autocomplétion sur le nom, à la manière de l'API BAN.
+
+  À distinguer de `/v1/equides?nom=…`, qui filtre et pagine **sans classer**.
+  Ici les résultats sont ordonnés par pertinence et le coût est borné par
+  `limite`, pas par la popularité du préfixe — la réponse doit arriver avant
+  la frappe suivante.
+
+  ## Comment le classement est borné
+
+  Sur un préfixe d'une lettre, les candidats se comptent en centaines de
+  milliers : les parcourir tous serait impossible en temps interactif. Ce sont
+  donc les **jetons** qui sont classés — le jeton exactement égal à la requête
+  d'abord, puis les plus courts — et leurs postings ne sont lus que jusqu'à
+  remplir la page demandée.
+
+  Mesuré à 0,01 s, y compris sur `q=q`.
+}

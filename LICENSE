@@ -1,0 +1,59 @@
+MIT License
+
+Copyright (c) 2026 COLLECTIF PIXEL
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Cette licence couvre le CODE de ce dépôt.
+
+Les DONNÉES servies par cette API proviennent des fiches publiques d'équidés
+diffusées par l'Institut français du cheval et de l'équitation (IFCE),
+département SIRE, sur infochevaux.ifce.fr.
+
+L'IFCE est un établissement public administratif (décret n° 2010-90 du
+22 janvier 2010). Leur réutilisation relève donc du régime des informations
+publiques :
+
+  - article L321-1 du code des relations entre le public et l'administration :
+    les informations publiques figurant dans des documents communiqués ou
+    publiés par les administrations peuvent être utilisées par toute personne
+    à d'autres fins que celles de la mission de service public ;
+
+  - article L321-3 du même code : une administration ne peut opposer les droits
+    qu'elle tient des articles L342-1 et L342-2 du code de la propriété
+    intellectuelle (droit sui generis du producteur de base de données) pour
+    faire obstacle à cette réutilisation ;
+
+  - décret n° 2016-1617 du 29 novembre 2016 : la liste limitative des
+    informations publiques susceptibles d'être soumises à redevance ne
+    mentionne ni l'IFCE ni les données équines.
+
+OBLIGATIONS DU RÉUTILISATEUR (art. L322-1 du même code) : mentionner la source
+et la date de dernière mise à jour, et ne pas dénaturer la donnée. L'endpoint
+/v1/meta expose la source, la date d'ingestion et l'empreinte du fichier servi.
+
+DONNÉES PERSONNELLES : cette API n'expose aucune donnée à caractère personnel.
+Elle ne sert que des informations relatives à des animaux — identifiant, nom,
+race, robe, millésime, filiation et indices de performance.
+
+Le seul champ nominatif de la source, « naisseur », est écarté dès l'ingestion :
+il n'est pas désérialisé, n'entre pas dans l'image de données et n'est donc
+exposé par aucun endpoint, export ou référentiel.

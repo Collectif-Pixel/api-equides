@@ -1,0 +1,38 @@
+meta {
+  name: Races de lien (propres)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/v1/referentiels/races_lien
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("est trié du plus fréquent au plus rare", function() {
+    const n = res.getBody().donnees.map(function(m) { return m.nombre; });
+    for (let i = 1; i < n.length; i++) expect(n[i] <= n[i - 1]).to.equal(true);
+  });
+
+  test("aucune valeur ne ressemble à un chrono", function() {
+    res.getBody().donnees.forEach(function(m) {
+      expect(m.valeur).to.not.match(/\d+'\d+/);
+    });
+  });
+}
+
+docs {
+  Les races abrégées portées par les **liens de filiation** : 198 valeurs,
+  toutes propres (`TF`, `TE`, `TETF`, `PS`, `RI`, `OES`…).
+
+  C'est cette valeur que l'API expose dans les objets `pere`, `mere` et
+  `pere_de_mere`, plutôt que la race de la fiche du parent.
+
+  Comparez avec le référentiel « Races (fiches) » : 198 contre 11 747.
+}

@@ -1,0 +1,29 @@
+headers {
+  Accept: application/json
+}
+
+docs {
+  # API Équidés
+
+  4 446 638 fiches d'équidés de l'IFCE, avec généalogie et performances.
+
+  ## Mise en route
+
+  1. `make donnees` puis `make servir` (API sur 127.0.0.1:8081)
+  2. Sélectionner l'environnement **Local**
+  3. Lancer `Équidés / Recherche simple` en premier : elle enregistre un
+     identifiant réel dans `equide_id`, réutilisé par la fiche, le pedigree
+     et la descendance.
+
+  `Runner` (⌘/Ctrl + R) exécute toute la collection.
+
+  ## Rappels sur la donnée
+
+  - Les identifiants sont ceux de l'IFCE, tels qu'ils figurent dans l'URL
+    des fiches publiques.
+  - Le champ `race` d'une fiche est pollué par des chronos de course ; la
+    race portée par un lien de filiation, elle, est propre.
+  - `avec_performances=false` ne veut pas dire « n'a jamais concouru ».
+  - Aucune réponse ne porte de lien déductible d'un identifiant : les
+    gabarits sont publiés par `GET /`.
+}

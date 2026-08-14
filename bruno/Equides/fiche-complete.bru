@@ -1,0 +1,43 @@
+meta {
+  name: Fiche complète
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/v1/equides/{{equide_id}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("renvoie bien l'équidé demandé", function() {
+    expect(res.getBody().id).to.equal(bru.getVar("equide_id"));
+  });
+
+  test("l'URL de la fiche source est reconstruite", function() {
+    const u = res.getBody().url;
+    expect(u).to.contain("infochevaux.ifce.fr");
+    expect(u).to.contain(res.getBody().id);
+  });
+
+  test("aucun lien déductible n'est répété", function() {
+    expect(res.getBody().liens).to.equal(undefined);
+    expect(res.getBody().href).to.equal(undefined);
+  });
+}
+
+docs {
+  ⚠️ **Lancez « Recherche simple » d'abord** : elle renseigne `equide_id`.
+
+  Consultation unitaire en O(log n) par recherche dichotomique sur les
+  identifiants IFCE, stockés décodés sur 16 octets.
+
+  Le champ `url` n'est pas stocké mais **reconstruit** depuis le slug et
+  l'identifiant : le gabarit restitue la fiche source à l'identique, ce qui
+  évite d'immobiliser 250 Mio pour une information redondante.
+}

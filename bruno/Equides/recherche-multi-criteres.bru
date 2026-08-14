@@ -1,0 +1,55 @@
+meta {
+  name: Recherche multi-critères
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/v1/equides?race=Trotteur%20Francais&sexe=Femelle&annee_naissance=2015&limite=5
+  body: none
+  auth: none
+}
+
+params:query {
+  race: Trotteur Francais
+  sexe: Femelle
+  annee_naissance: 2015
+  limite: 5
+  ~discipline: TROT COURSE
+  ~indice: ISO
+  ~annee_min: 2010
+  ~annee_max: 2020
+  ~avec_performances: true
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("tous les résultats respectent les trois critères", function() {
+    res.getBody().donnees.forEach(function(e) {
+      expect(e.race).to.equal("Trotteur Francais");
+      expect(e.sexe).to.equal("Femelle");
+      expect(e.annee_naissance).to.equal(2015);
+    });
+  });
+
+  test("la sélection est un sous-ensemble strict", function() {
+    const t = res.getBody().pagination.total;
+    expect(t).to.be.above(0);
+    expect(t).to.be.below(4000000);
+  });
+}
+
+docs {
+  **Même dimension → OU**, **dimensions différentes → ET**.
+
+  Casse et accents sont ignorés : `?race=trotteur francais` fonctionne.
+
+  Chaque filtre se résout par intersection de bitmaps compressés, en dizaines
+  de microsecondes, indépendamment du nombre de lignes correspondantes.
+
+  Cochez les paramètres grisés pour explorer les autres dimensions,
+  notamment `indice` (BTR, ISO, ITR…) et `discipline`.
+}

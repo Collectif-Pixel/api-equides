@@ -1,0 +1,80 @@
+---
+title: API Équidés
+description: >-
+  API REST ouverte sur les fiches publiques d'équidés de l'IFCE :
+  4,4 millions de fiches, généalogie et indices de performance.
+template: splash
+hero:
+  tagline: >-
+    4,4 millions de fiches publiques d'équidés, leur généalogie et leurs indices
+    de performance. Sans clé, sans compte, sans inscription.
+  actions:
+    - text: Premiers pas
+      link: /guides/premiers-pas/
+      icon: right-arrow
+    - text: Référence
+      link: /reference/
+      variant: minimal
+      icon: open-book
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components'
+
+<CardGrid>
+  <Card title="Un appel, sans préalable" icon="rocket">
+    Ni clé, ni jeton, ni compte. La première requête part du terminal.
+
+    ```sh wrap
+    curl 'https://api-equides.org/v1/search?q=qab'
+    ```
+  </Card>
+
+  <Card title="Le graphe en une requête" icon="approve-check">
+    Un pedigree sur cinq générations touche 31 ancêtres : un seul appel,
+    au lieu de 31 allers-retours.
+
+    ```sh wrap
+    curl 'https://api-equides.org/v1/equides/{id}/pedigree?generations=5'
+    ```
+  </Card>
+
+  <Card title="Des facettes sans les lignes" icon="bars">
+    Ventiler une sélection ne rapatrie que des effectifs, jamais les fiches.
+
+    ```sh wrap
+    curl 'https://api-equides.org/v1/stats/repartition?dimension=race'
+    ```
+  </Card>
+
+  <Card title="Service indépendant" icon="warning">
+    Non affilié à l'IFCE. La donnée servie est une extraction datée ; les
+    fiches en ligne font seules autorité.
+
+    [Provenance et licence](/donnees/provenance/)
+  </Card>
+</CardGrid>
+
+<div class="soutiens">
+  <p>
+    API développée par le <a href="https://github.com/Collectif-Pixel">Collectif Pixel</a>,
+    <a href="https://www.pappers.fr/entreprise/collectif-pixel-939159794">association loi 1901</a>.
+  </p>
+  <p>Hébergement offert par</p>
+  <a href="https://clever.cloud/" class="logo-soutien">
+    <img
+      src="/clever-cloud.svg"
+      alt="Clever Cloud"
+      width="200"
+      height="52"
+      class="dark:sl-hidden"
+    />
+    <img
+      src="/clever-cloud-sombre.svg"
+      alt="Clever Cloud"
+      width="200"
+      height="52"
+      class="light:sl-hidden"
+    />
+  </a>
+  <p><a href="/remerciements/">Remerciements et sponsoring</a></p>
+</div>

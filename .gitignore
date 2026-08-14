@@ -1,0 +1,8 @@
+/target
+/data/*.bin
+*.csv
+*.ndjson
+*.log
+.DS_Store
+*.jsonl
+/node_modules

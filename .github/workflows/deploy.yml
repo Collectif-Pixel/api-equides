@@ -1,0 +1,63 @@
+name: Déploiement
+
+on:
+  workflow_call:
+    inputs:
+      reference:
+        description: Tag, branche ou commit à déployer
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      reference:
+        description: Tag, branche ou commit à déployer
+        required: true
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploiement-clever-cloud
+  cancel-in-progress: false
+
+jobs:
+  clever:
+    name: Clever Cloud
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://api-equides.org
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.reference }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Installer clever-tools
+        run: npm install --global clever-tools@4
+
+      - name: Déployer
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          git switch --create deploiement-${{ github.run_id }}
+          clever deploy --force
+
+      - name: Vérifier que le service répond
+        run: |
+          for _ in $(seq 60); do
+            if curl -sf https://api-equides.org/healthz | grep -q '"statut":"ok"'; then
+              echo "service en ligne"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "le service n'a pas répondu dans les dix minutes" >&2
+          exit 1

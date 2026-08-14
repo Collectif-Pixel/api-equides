@@ -1,0 +1,39 @@
+meta {
+  name: Sonde de santé
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/healthz
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("confirme que l'image est chargée", function() {
+    expect(res.getBody().statut).to.equal("ok");
+    expect(res.getBody().lignes).to.be.above(0);
+  });
+
+  test("la télémétrie n'est PAS sur le port public", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+docs {
+  Sondes de vivacité et de disponibilité, volontairement laissées sur le port
+  **public** : un répartiteur de charge doit pouvoir les interroger sans accès
+  au plan d'administration.
+
+  `/metrics`, en revanche, n'est servi que sur l'écoute d'administration
+  (`EQUIDES_ADRESSE_ADMIN`, défaut `127.0.0.1:9091`). Le publier sur le port
+  public offrirait à tout le monde la latence, le volume et le taux d'erreur
+  du service.
+
+  Vérifiez-le : `GET {{base_url}}/metrics` renvoie 404.
+}
