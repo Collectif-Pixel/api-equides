@@ -41,6 +41,30 @@ impl<'a> Reference<'a> {
 }
 
 #[derive(Serialize)]
+pub struct Produit<'a> {
+    pub id: String,
+    pub nom: &'a str,
+    pub race: &'a str,
+    pub sexe: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annee_naissance: Option<i32>,
+    pub fiche_disponible: bool,
+}
+
+impl<'a> Produit<'a> {
+    pub fn depuis(store: &'a Store, row: u32) -> Self {
+        Self {
+            id: store.id(row),
+            nom: store.nom(row),
+            race: store.race_libelle(row),
+            sexe: store.sexe_libelle(row),
+            annee_naissance: store.annee(row),
+            fiche_disponible: true,
+        }
+    }
+}
+
+#[derive(Serialize)]
 pub struct Indice<'a> {
     pub code: &'a str,
     pub valeur: &'a str,

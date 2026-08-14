@@ -303,6 +303,23 @@ fn schemas() -> Value {
                 "arbre": { "$ref": "#/components/schemas/Noeud" }
             }
         },
+        "Produit": {
+            "type": "object",
+            "description": "Un produit direct, décrit comme un nœud de pedigree : \
+                            mêmes champs, même sens.",
+            "required": ["id", "nom", "race", "sexe", "fiche_disponible"],
+            "properties": {
+                "id": { "type": "string", "example": "QylKqa2SStCCxjmFVYNvvg" },
+                "nom": { "type": "string", "example": "PAMPA D'ARPO" },
+                "race": { "type": "string" },
+                "sexe": { "type": "string", "example": "Femelle" },
+                "annee_naissance": { "type": "integer", "example": 2004 },
+                "fiche_disponible": {
+                    "type": "boolean",
+                    "description": "Toujours vrai : un produit est une fiche du jeu."
+                }
+            }
+        },
         "Descendance": {
             "type": "object",
             "required": ["parent", "total", "limite", "offset", "donnees"],
@@ -316,7 +333,7 @@ fn schemas() -> Value {
                 "offset": { "type": "integer" },
                 "donnees": {
                     "type": "array",
-                    "items": { "$ref": "#/components/schemas/Reference" }
+                    "items": { "$ref": "#/components/schemas/Produit" }
                 }
             }
         },

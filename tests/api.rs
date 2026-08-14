@@ -1128,3 +1128,26 @@ async fn l_autocompletion_tient_compte_des_mots_deja_saisis() {
         "un mot sans correspondance ne suggère rien"
     );
 }
+
+#[tokio::test]
+async fn un_produit_est_decrit_comme_un_ancetre() {
+    let pedigree = json("/v1/equides/CCCCCCCCCCCCCCCCCCCCCA/pedigree?generations=1").await;
+    let ancetre = &pedigree["arbre"]["pere"];
+
+    let descendance = json("/v1/equides/AAAAAAAAAAAAAAAAAAAAAA/descendance").await;
+    let produit = &descendance["donnees"][0];
+
+    for champ in ["id", "nom", "race", "sexe", "annee_naissance"] {
+        assert!(
+            !ancetre[champ].is_null(),
+            "un nœud de pedigree n'expose pas `{champ}`"
+        );
+        assert!(
+            !produit[champ].is_null(),
+            "un produit n'expose pas `{champ}` : les deux vues du même équidé divergent"
+        );
+    }
+
+    assert_eq!(produit["nom"], "PERE");
+    assert_eq!(produit["sexe"], "Male");
+}

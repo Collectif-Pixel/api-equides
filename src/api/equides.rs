@@ -224,7 +224,7 @@ struct Descendance<'a> {
     total: usize,
     limite: usize,
     offset: usize,
-    donnees: Vec<Reference<'a>>,
+    donnees: Vec<crate::model::Produit<'a>>,
 }
 
 pub async fn descendance(
@@ -253,7 +253,7 @@ pub async fn descendance(
             .iter()
             .skip(offset)
             .take(limite)
-            .map(|&r| Reference::depuis(store, r))
+            .map(|&r| crate::model::Produit::depuis(store, r))
             .collect(),
     })
 }
