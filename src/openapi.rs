@@ -35,15 +35,32 @@ fn param(nom: &str, description: &str, schema: &Value, exemple: &Value) -> Value
     })
 }
 
+fn part_sans_performances(store: &Store) -> String {
+    let total = u64::from(store.n);
+    if total == 0 {
+        return "0,0".to_string();
+    }
+    let sans = total - store.bitmap_avec_performances().len();
+    format!("{:.1}", sans as f64 * 100.0 / total as f64).replace('.', ",")
+}
+
 fn params_filtre(store: &Store) -> Vec<Value> {
     let (race, robe, sexe) = exemples(store);
     let repetable = |t: &str| json!({ "type": "array", "items": { "type": t } });
+    let statut = plus_frequent(&store.statuts_reproducteur, |c| {
+        store.bitmap_statut_reproducteur(c)
+    });
     vec![
         param(
             "race",
-            "Race, répétable pour un OU (`?race=A&race=B`) ou séparée par des virgules. \
-             Insensible à la casse et aux accents. Le jeu compte 11 747 races distinctes ; \
-             valeurs admises sur /v1/referentiels/races.",
+            &format!(
+                "Race, répétable pour un OU (`?race=A&race=B`) ou séparée par des virgules. \
+                 Insensible à la casse et aux accents. Le jeu compte {} races distinctes ; \
+                 valeurs admises sur /v1/referentiels/races. Attention : les objets `pere`, \
+                 `mere` et `pere_de_mere` portent le code abrégé du lien \
+                 (/v1/referentiels/races_lien), que ce filtre n'accepte pas.",
+                store.races.len()
+            ),
             &repetable("string"),
             &json!(race),
         ),
@@ -58,6 +75,14 @@ fn params_filtre(store: &Store) -> Vec<Value> {
             "Sexe tel qu'écrit par la source : `Femelle`, `Male`, `Hongre`, `Indeter`.",
             &repetable("string"),
             &json!(sexe),
+        ),
+        param(
+            "statut_reproducteur",
+            "Statut déclaré à la reproduction. Distinct de la descendance connue : une \
+             poulinière sans produit enregistré porte quand même son statut. \
+             Valeurs admises : /v1/referentiels/statuts_reproducteur.",
+            &repetable("string"),
+            &json!(statut),
         ),
         param(
             "discipline",
@@ -100,10 +125,13 @@ fn params_filtre(store: &Store) -> Vec<Value> {
         ),
         param(
             "avec_performances",
-            "Restreint aux équidés portant (ou non) des indices de performance. \
-             Accepte `true`, `false`, `1`, `0`, `oui`, `non`. \
-             Attention : `false` ne signifie pas que l'équidé n'a jamais concouru, \
-             seulement qu'aucun indice n'est publié — 75,1 % du jeu est dans ce cas.",
+            &format!(
+                "Restreint aux équidés portant (ou non) des indices de performance. \
+                 Accepte `true`, `false`, `1`, `0`, `oui`, `non`. \
+                 Attention : `false` ne signifie pas que l'équidé n'a jamais concouru, \
+                 seulement qu'aucun indice n'est publié — {} % du jeu est dans ce cas.",
+                part_sans_performances(store)
+            ),
             &json!({ "type": "boolean" }),
             &json!(true),
         ),
@@ -141,10 +169,30 @@ fn schemas() -> Value {
                     "type": "string",
                     "description": "Fiche d'origine, reconstruite depuis le slug et l'identifiant."
                 },
-                "race": { "type": "string", "example": "Trotteur Francais" },
+                "race": {
+                    "type": "string",
+                    "description": "Libellé développé. Les objets `pere`, `mere` et \
+                                    `pere_de_mere` portent, eux, le code abrégé du lien.",
+                    "example": "Trotteur Francais"
+                },
                 "sexe": { "type": "string", "enum": ["Femelle", "Male", "Hongre", "Indeter"] },
                 "robe": { "type": "string", "example": "Bai" },
                 "annee_naissance": { "type": "integer", "example": 2026 },
+                "record": {
+                    "type": "string",
+                    "description": "Chrono de course déclaré par la source. Texte : ni \
+                                    comparable ni triable en l'état. Absent quand la source \
+                                    n'en publie pas.",
+                    "example": "1'16\"7 (AEL3V)"
+                },
+                "statut_reproducteur": {
+                    "type": "string",
+                    "description": "Statut déclaré à la reproduction, là où \
+                                    `nombre_de_descendants` est calculé : une poulinière sans \
+                                    produit enregistré porte quand même son statut. Son absence \
+                                    est un silence de la source, pas une négation.",
+                    "example": "Pouliniere"
+                },
                 "filiation_texte": {
                     "type": "string",
                     "description": "Filiation telle que rédigée par la source.",
@@ -379,6 +427,15 @@ fn schemas() -> Value {
                     "description": "Équidés dont au moins un parent est renseigné."
                 },
                 "sans_filiation": { "type": "integer" },
+                "avec_record": {
+                    "type": "integer",
+                    "description": "Fiches portant un chrono de course déclaré."
+                },
+                "avec_statut_reproducteur": {
+                    "type": "integer",
+                    "description": "Fiches portant un statut déclaré à la reproduction, \
+                                    toutes modalités confondues."
+                },
                 "par_sexe": {
                     "type": "array",
                     "items": { "$ref": "#/components/schemas/Tranche" }
@@ -443,10 +500,28 @@ fn schemas() -> Value {
                     "description": "Gabarit reconstruisant l'URL publique d'une fiche."
                 },
                 "ingere_le": { "type": "string", "description": "Date d'ingestion, ISO 8601." },
+                "fichier_source": {
+                    "type": "string",
+                    "description": "Nom du fichier d'extraction ingéré, celui que \
+                                    `empreinte_source` et `octets_source` décrivent.",
+                    "example": "chevaux.jsonl"
+                },
+                "octets_source": {
+                    "type": "integer",
+                    "description": "Taille exacte du fichier ingéré."
+                },
+                "algorithme_empreinte": {
+                    "type": "string",
+                    "description": "Fonction de hachage employée pour `empreinte_source`. \
+                                    Publiée pour que l'empreinte soit reproductible sans \
+                                    avoir à deviner l'algorithme.",
+                    "example": "blake3"
+                },
                 "empreinte_source": {
                     "type": "string",
-                    "description": "Empreinte blake3 du fichier source : elle identifie \
-                                    exactement l'extraction servie."
+                    "description": "Empreinte du fichier ingéré, octet pour octet — pas celle \
+                                    d'un export normalisé. Elle identifie exactement \
+                                    l'extraction servie."
                 },
                 "lignes": { "type": "integer" },
                 "anomalies": { "$ref": "#/components/schemas/Anomalies" }
@@ -462,10 +537,27 @@ fn schemas() -> Value {
                 "annee_naissance_max": { "type": ["integer", "null"] },
                 "robe_absente": { "type": "integer" },
                 "sans_filiation": { "type": "integer" },
+                "parents_references": {
+                    "type": "integer",
+                    "description": "Identifiants de parents distincts cités par au moins une fiche."
+                },
                 "parents_pendants": {
                     "type": "integer",
-                    "description": "Parents référencés mais absents du fichier : le lien est \
-                                    rompu, et exposé comme une absence de parent."
+                    "description": "Ceux d'entre eux qui sont absents du fichier : le lien est \
+                                    rompu, et exposé comme une absence de parent. Dénombrés par \
+                                    identifiant, pas par citation — un étalon absent cité mille \
+                                    fois compte pour un."
+                },
+                "references_de_parents": {
+                    "type": "integer",
+                    "description": "Emplacements `pere`, `mere` ou `pere_de_mere` portant un \
+                                    identifiant, toutes fiches confondues."
+                },
+                "references_pendantes": {
+                    "type": "integer",
+                    "description": "Ceux d'entre eux dont la cible manque. Toujours supérieur ou \
+                                    égal à `parents_pendants` : c'est le même défaut compté par \
+                                    citation plutôt que par identifiant."
                 },
                 "identifiants_illisibles": { "type": "integer" },
                 "slugs_non_deductibles": { "type": "integer" }
@@ -646,10 +738,11 @@ pub fn document(store: &Store) -> Value {
     params_repartition.extend([
         param(
             "dimension",
-            "Dimension à ventiler : `race`, `robe`, `sexe`, `discipline`, `annee_naissance`.",
+            "Dimension à ventiler : `race`, `robe`, `sexe`, `statut_reproducteur`, \
+             `discipline`, `annee_naissance`.",
             &json!({
                 "type": "string",
-                "enum": ["race", "robe", "sexe", "discipline", "annee_naissance"],
+                "enum": ["race", "robe", "sexe", "statut_reproducteur", "discipline", "annee_naissance"],
                 "default": "race"
             }),
             &json!("race"),
@@ -927,11 +1020,16 @@ pub fn document(store: &Store) -> Value {
                     ),
                     "parameters": [{
                         "name": "dimension", "in": "path", "required": true,
-                        "description": "Référentiel demandé. `races_lien` porte les 13 races \
-                                        propres déclarées sur les liens de filiation, là où \
-                                        `races` reflète un champ pollué par la source.",
+                        "description": format!(
+                            "Référentiel demandé. `races` liste les {races} libellés développés \
+                             portés par les fiches ; `races_lien` les {races_lien} codes abrégés \
+                             portés par les liens de filiation. Ce sont deux nomenclatures \
+                             distinctes, et seule la première est admise par le filtre `race=`.",
+                            races = store.races.len(),
+                            races_lien = store.races_lien.len(),
+                        ),
                         "schema": { "type": "string",
-                                    "enum": ["races", "robes", "sexes", "disciplines", "codes_indice", "races_lien", "annees_naissance"] },
+                                    "enum": ["races", "robes", "sexes", "statuts_reproducteur", "disciplines", "codes_indice", "races_lien", "annees_naissance"] },
                         "example": "races"
                     }],
                     "responses": reponses(json!({

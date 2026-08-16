@@ -6,3 +6,4 @@
 .DS_Store
 *.jsonl
 /node_modules
+/data/*.zst

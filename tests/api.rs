@@ -112,7 +112,10 @@ fn snapshot_test() -> Snapshot {
     let mut noms = Arene::nouvelle();
     let mut slugs = Arene::nouvelle();
     let mut filiations = Arene::nouvelle();
+    let mut records = Arene::nouvelle();
     let (mut race, mut robe, mut sexe, mut annee) = (vec![], vec![], vec![], vec![]);
+    let mut statut_reproducteur = Vec::new();
+    let mut dict_statuts: Vec<String> = Vec::new();
     let mut index: HashMap<&str, u32> = HashMap::new();
 
     for (i, l) in LIGNES.iter().enumerate() {
@@ -129,6 +132,14 @@ fn snapshot_test() -> Snapshot {
                 "Par PERE et MERE"
             })
             .unwrap();
+        records
+            .pousser(if i == 4 { "1'16\"7 (AEL3V)" } else { "" })
+            .unwrap();
+        statut_reproducteur.push(match i {
+            0 => intern(&mut dict_statuts, "Etalon Actif"),
+            1 | 3 => intern(&mut dict_statuts, "Pouliniere"),
+            _ => SANS_MODALITE,
+        });
         race.push(intern(&mut dicts[0], l.2));
         sexe.push(intern(&mut dicts[2], l.3) as u8);
         robe.push(if l.4.is_empty() {
@@ -168,11 +179,17 @@ fn snapshot_test() -> Snapshot {
                 .into(),
             url_modele: "https://infochevaux.ifce.fr/fr/{slug}-{id}/infos-generales".into(),
             ingere_le: "2026-01-01".into(),
+            fichier_source: "chevaux-de-test.jsonl".into(),
+            octets_source: 4096,
+            algorithme_empreinte: "blake3".into(),
             empreinte_source: "empreinte-de-test".into(),
             lignes: n as u32,
             anomalies: Anomalies {
                 sans_filiation: 4,
+                parents_references: 5,
                 parents_pendants: 1,
+                references_de_parents: 5,
+                references_pendantes: 1,
                 annee_naissance_absente: 1,
                 annee_naissance_min: Some(1990),
                 annee_naissance_max: Some(2020),
@@ -187,14 +204,17 @@ fn snapshot_test() -> Snapshot {
         dict_disciplines: vec!["TROT COURSE".into()],
         dict_codes_indice: vec!["BTR".into()],
         dict_appreciations: vec![],
+        dict_statuts_reproducteur: dict_statuts,
         ids: ids_plats,
         noms,
         slugs,
         filiations,
+        records,
         race,
         robe,
         sexe,
         annee,
+        statut_reproducteur,
         pere: LIGNES.iter().map(|l| lien(l.6)).collect(),
         mere: LIGNES.iter().map(|l| lien(l.7)).collect(),
         pere_de_mere: vec![SANS_PARENT; n],
@@ -698,6 +718,64 @@ async fn repartition_respecte_les_filtres() {
 }
 
 #[tokio::test]
+async fn record_et_statut_reproducteur_sont_servis_tels_que_declares() {
+    let fiche = json("/v1/equides/EEEEEEEEEEEEEEEEEEEEEA").await;
+    assert_eq!(fiche["record"], "1'16\"7 (AEL3V)");
+    assert!(
+        fiche.get("statut_reproducteur").is_none(),
+        "un statut absent de la source ne doit pas être inventé"
+    );
+
+    let mere = json("/v1/equides/DDDDDDDDDDDDDDDDDDDDDA").await;
+    assert_eq!(mere["statut_reproducteur"], "Pouliniere");
+    assert!(mere.get("record").is_none());
+}
+
+#[tokio::test]
+async fn le_statut_de_reproducteur_ne_se_deduit_pas_de_la_descendance() {
+    let grand_mere = json("/v1/equides/BBBBBBBBBBBBBBBBBBBBBA").await;
+    assert_eq!(grand_mere["statut_reproducteur"], "Pouliniere");
+    assert_eq!(grand_mere["nombre_de_descendants"], 1);
+
+    let mere = json("/v1/equides/DDDDDDDDDDDDDDDDDDDDDA").await;
+    assert_eq!(mere["statut_reproducteur"], "Pouliniere");
+    assert_eq!(mere["nombre_de_descendants"], 1);
+
+    let eldorado = json("/v1/equides/EEEEEEEEEEEEEEEEEEEEEA").await;
+    assert_eq!(eldorado["nombre_de_descendants"], 0);
+    assert!(eldorado.get("statut_reproducteur").is_none());
+}
+
+#[tokio::test]
+async fn filtre_referentiel_et_repartition_sur_le_statut_de_reproducteur() {
+    let page = json("/v1/equides?statut_reproducteur=Pouliniere").await;
+    assert_eq!(page["pagination"]["total"], 2);
+
+    let insensible = json("/v1/equides?statut_reproducteur=POULINIERE").await;
+    assert_eq!(insensible["pagination"]["total"], 2);
+
+    let ref_ = json("/v1/referentiels/statuts_reproducteur").await;
+    assert_eq!(ref_["nombre_de_modalites"], 2);
+    assert_eq!(ref_["donnees"][0]["valeur"], "Pouliniere");
+    assert_eq!(ref_["donnees"][0]["nombre"], 2);
+
+    let rep = json("/v1/stats/repartition?dimension=statut_reproducteur").await;
+    assert_eq!(rep["effectif_affiche"], 3);
+
+    assert_eq!(
+        get("/v1/equides?statut_reproducteur=Licorne").await.0,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn les_effectifs_globaux_comptent_les_champs_declares() {
+    let v = json("/v1/stats").await;
+    assert_eq!(v["avec_record"], 1);
+    assert_eq!(v["avec_statut_reproducteur"], 3);
+}
+
+#[tokio::test]
 async fn les_exports_ont_ete_retires() {
     for route in ["/v1/export.csv", "/v1/export.ndjson"] {
         assert_eq!(get(route).await.0, StatusCode::NOT_FOUND, "{route}");
@@ -745,7 +823,50 @@ async fn metadonnees_exposent_provenance_et_limites() {
     assert!(remarques.contains("aucune donnée à caractère personnel"));
     assert!(remarques.contains("non affilié"));
     assert!(remarques.contains("liens rompus"));
-    assert!(remarques.contains("11 747"));
+}
+
+#[tokio::test]
+async fn l_empreinte_annonce_son_algorithme_et_son_fichier() {
+    let v = json("/v1/meta").await;
+    let jeu = &v["jeu_de_donnees"];
+    assert_eq!(jeu["algorithme_empreinte"], "blake3");
+    assert_eq!(jeu["fichier_source"], "chevaux-de-test.jsonl");
+    assert_eq!(jeu["octets_source"], 4096);
+
+    let remarques = serde_json::to_string(&v["remarques"]).unwrap();
+    assert!(
+        remarques.contains("blake3") && remarques.contains("chevaux-de-test.jsonl"),
+        "la remarque sur la mention obligatoire doit désigner le jeu sans ambiguïté : {remarques}"
+    );
+}
+
+#[tokio::test]
+async fn les_remarques_ne_contredisent_pas_l_api() {
+    let meta = json("/v1/meta").await;
+    let remarques = serde_json::to_string(&meta["remarques"]).unwrap();
+    let anomalies = &meta["jeu_de_donnees"]["anomalies"];
+
+    let races = json("/v1/referentiels/races").await["nombre_de_modalites"]
+        .as_u64()
+        .unwrap();
+    let races_lien = json("/v1/referentiels/races_lien").await["nombre_de_modalites"]
+        .as_u64()
+        .unwrap();
+    assert!(
+        remarques.contains(&format!("{races} valeurs")),
+        "la remarque sur les races doit citer les {races} modalités réellement servies"
+    );
+    assert!(remarques.contains(&format!("{races_lien} valeurs")));
+
+    let pendants = anomalies["parents_pendants"].as_u64().unwrap();
+    let citations = anomalies["references_pendantes"].as_u64().unwrap();
+    assert!(citations >= pendants);
+    assert!(remarques.contains(&format!("Les {pendants} autres")));
+    assert!(remarques.contains(&format!("{citations} citations rompues")));
+
+    let stats = json("/v1/stats").await;
+    let avec_record = stats["avec_record"].as_u64().unwrap();
+    assert!(remarques.contains(&format!("sur {avec_record} fiches")));
 }
 
 #[tokio::test]

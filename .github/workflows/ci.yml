@@ -105,9 +105,10 @@ jobs:
         run: |
           cat > echantillon.jsonl <<'JSONL'
           {"id":"AAAAAAAAAAAAAAAAAAAAAA","slug":"grand-pere","nom":"GRAND PERE","url":"https://infochevaux.ifce.fr/fr/grand-pere-AAAAAAAAAAAAAAAAAAAAAA/infos-generales","race":"Trotteur Francais","sexe":"Male","robe":"Bai","annee_naissance":1990}
-          {"id":"BBBBBBBBBBBBBBBBBBBBBA","slug":"grand-mere","nom":"GRAND MERE","url":"https://infochevaux.ifce.fr/fr/grand-mere-BBBBBBBBBBBBBBBBBBBBBA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Alezan","annee_naissance":1992}
+          {"id":"BBBBBBBBBBBBBBBBBBBBBA","slug":"grand-mere","nom":"GRAND MERE","url":"https://infochevaux.ifce.fr/fr/grand-mere-BBBBBBBBBBBBBBBBBBBBBA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Alezan","annee_naissance":1992,"statut_reproducteur":"Pouliniere"}
+          {"id":"DDDDDDDDDDDDDDDDDDDDDA","slug":"jamais-saillie","nom":"JAMAIS SAILLIE","url":"https://infochevaux.ifce.fr/fr/jamais-saillie-DDDDDDDDDDDDDDDDDDDDDA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Bai","annee_naissance":2018,"statut_reproducteur":"Pouliniere"}
           {"id":"CCCCCCCCCCCCCCCCCCCCCA","slug":"pere","nom":"PERE","url":"https://infochevaux.ifce.fr/fr/pere-CCCCCCCCCCCCCCCCCCCCCA/infos-generales","race":"Trotteur Francais","sexe":"Male","robe":"Bai","annee_naissance":2005,"filiation_texte":"Par GRAND PERE TF et GRAND MERE TF","pere":{"id":"AAAAAAAAAAAAAAAAAAAAAA","nom":"GRAND PERE","race":"TF","pays":null,"alias":null},"mere":{"id":"BBBBBBBBBBBBBBBBBBBBBA","nom":"GRAND MERE","race":"TF","pays":null,"alias":null}}
-          {"id":"EEEEEEEEEEEEEEEEEEEEEA","slug":"eldorado","nom":"ELDORÀDO","url":"https://infochevaux.ifce.fr/fr/eldorado-EEEEEEEEEEEEEEEEEEEEEA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Bai","annee_naissance":2015,"pere":{"id":"CCCCCCCCCCCCCCCCCCCCCA","nom":"PERE","race":"TF","pays":"IRLANDE","alias":null},"performances":[{"discipline":"TROT COURSE","texte":"BTR +59 (0.35)","indices":[{"code":"BTR","valeur":"+59","coefficient":0.35,"annee":null,"appreciation":"indice-satisfaisant"}]}]}
+          {"id":"EEEEEEEEEEEEEEEEEEEEEA","slug":"eldorado","nom":"ELDORÀDO","url":"https://infochevaux.ifce.fr/fr/eldorado-EEEEEEEEEEEEEEEEEEEEEA/infos-generales","race":"Trotteur Francais","sexe":"Femelle","robe":"Bai","annee_naissance":2015,"record":"1'16\"7 (AEL3V)","pere":{"id":"CCCCCCCCCCCCCCCCCCCCCA","nom":"PERE","race":"TF","pays":"IRLANDE","alias":null},"performances":[{"discipline":"TROT COURSE","texte":"BTR +59 (0.35)","indices":[{"code":"BTR","valeur":"+59","coefficient":0.35,"annee":null,"appreciation":"indice-satisfaisant"}]}]}
           {"id":"FFFFFFFFFFFFFFFFFFFFFA","slug":"orphelin","nom":"ORPHELIN","url":"https://infochevaux.ifce.fr/fr/orphelin-FFFFFFFFFFFFFFFFFFFFFA/infos-generales","race":"Pur Sang","sexe":"Hongre","annee_naissance":2020,"pere":{"id":"ZZZZZZZZZZZZZZZZZZZZZA","nom":"PERE INTROUVABLE","race":"PS","pays":null,"alias":null}}
           JSONL
 
@@ -134,7 +135,7 @@ jobs:
 
           echo "— comptage"
           test "$(curl -sf 'http://127.0.0.1:8081/v1/equides' \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "5"
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "6"
 
           echo "— les listes servent un résumé"
           curl -sf 'http://127.0.0.1:8081/v1/equides?limite=1' \
@@ -160,6 +161,29 @@ jobs:
             | python3 -c 'import json,sys; p=json.load(sys.stdin)["pere"]; \
               assert p["nom"] == "PERE INTROUVABLE" and p["fiche_disponible"] is False, p'
 
+          echo "— record et statut de reproducteur traversent l'ingestion"
+          curl -sf 'http://127.0.0.1:8081/v1/equides/EEEEEEEEEEEEEEEEEEEEEA' \
+            | python3 -c 'import json,sys; e=json.load(sys.stdin); \
+              assert e["record"] == "1'"'"'16\"7 (AEL3V)", e; \
+              assert "statut_reproducteur" not in e, e'
+
+          echo "— le statut déclaré ne se déduit pas de la descendance"
+          curl -sf 'http://127.0.0.1:8081/v1/equides/DDDDDDDDDDDDDDDDDDDDDA' \
+            | python3 -c 'import json,sys; e=json.load(sys.stdin); \
+              assert e["statut_reproducteur"] == "Pouliniere", e; \
+              assert e["nombre_de_descendants"] == 0, e'
+          test "$(curl -sf 'http://127.0.0.1:8081/v1/equides?statut_reproducteur=pouliniere' \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "2"
+          curl -sf 'http://127.0.0.1:8081/v1/referentiels/statuts_reproducteur' \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); \
+              assert d["nombre_de_modalites"] == 1, d'
+
+          echo "— parents pendants comptés par identifiant, citations à part"
+          curl -sf http://127.0.0.1:8081/v1/meta \
+            | python3 -c 'import json,sys; a=json.load(sys.stdin)["jeu_de_donnees"]["anomalies"]; \
+              assert (a["parents_references"], a["parents_pendants"]) == (4, 1), a; \
+              assert (a["references_de_parents"], a["references_pendantes"]) == (4, 1), a'
+
           echo "— filtre par code d'indice"
           test "$(curl -sf 'http://127.0.0.1:8081/v1/equides?indice=BTR' \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["pagination"]["total"])')" = "1"
@@ -172,7 +196,7 @@ jobs:
 
           echo "— télémétrie hors du port public"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/metrics)" = "404"
-          curl -sf http://127.0.0.1:9091/metrics | grep -q 'equides_lignes 5'
+          curl -sf http://127.0.0.1:9091/metrics | grep -q 'equides_lignes 6'
 
           echo "— la racine sert la découverte, quel que soit l'Accept"
           curl -sf -H 'Accept: text/html' http://127.0.0.1:8081/ \

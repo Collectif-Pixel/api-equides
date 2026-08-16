@@ -86,6 +86,8 @@ de proche en proche.
 ## La race d'un parent
 
 Le champ `race` des objets `pere`, `mere` et `pere_de_mere` ne vient **pas** de
-la fiche du parent : il vient de la race déclarée sur le lien de filiation. Ces
-deux valeurs diffèrent, et celle du lien est la propre — 13 modalités contre
-11 747. La raison est expliquée dans [Défauts connus](/donnees/defauts/).
+la fiche du parent : il vient de la race déclarée sur le lien de filiation, et
+s'écrit dans une autre nomenclature — `TF` là où la fiche porte
+`Trotteur Francais`. Les deux référentiels sont distincts, et seul celui des
+fiches est admis par le filtre `race=` : voir
+[Défauts connus](/donnees/defauts/).

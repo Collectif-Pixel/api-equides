@@ -6,7 +6,7 @@ use equides_api::snapshot::{
     SANS_MODALITE, SANS_PARENT, Snapshot,
 };
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -17,6 +17,8 @@ const URL_MODELE: &str = "https://infochevaux.ifce.fr/fr/{slug}-{id}/infos-gener
 
 const LICENCE_DEFAUT: &str =
     "Licence Ouverte / réutilisation d'informations publiques (CRPA art. L321-1)";
+
+const ALGORITHME_EMPREINTE: &str = "blake3";
 
 #[derive(Parser)]
 #[command(
@@ -43,6 +45,8 @@ struct Ligne {
     sexe: Option<String>,
     robe: Option<String>,
     annee_naissance: Option<i32>,
+    record: Option<String>,
+    statut_reproducteur: Option<String>,
     filiation_texte: Option<String>,
     pere: Option<Parent>,
     mere: Option<Parent>,
@@ -129,6 +133,7 @@ struct Colonnes {
     robe: Vec<u16>,
     sexe: Vec<u8>,
     annee: Vec<i16>,
+    statut_reproducteur: Vec<u16>,
 }
 
 fn main() -> Result<()> {
@@ -136,8 +141,8 @@ fn main() -> Result<()> {
     let debut = Instant::now();
 
     eprintln!("→ empreinte de {}", args.source.display());
-    let empreinte = empreinte_fichier(&args.source)?;
-    eprintln!("  blake3 = {empreinte}");
+    let (empreinte, octets_source) = empreinte_fichier(&args.source)?;
+    eprintln!("  {ALGORITHME_EMPREINTE} = {empreinte} ({octets_source} octets)");
 
     eprintln!("→ analyse du JSONL");
     let fichier = std::fs::File::open(&args.source)
@@ -152,12 +157,14 @@ fn main() -> Result<()> {
     let mut disciplines = Interneur::default();
     let mut codes_indice = Interneur::default();
     let mut appreciations = Interneur::default();
+    let mut statuts_reproducteur = Interneur::default();
 
     let mut col = Colonnes::default();
     let mut index_id: HashMap<[u8; ID_BYTES], u32> = HashMap::new();
     let mut noms = Arene::nouvelle();
     let mut slugs = Arene::nouvelle();
     let mut filiations = Arene::nouvelle();
+    let mut records = Arene::nouvelle();
 
     let mut brut_pere: Vec<Option<[u8; ID_BYTES]>> = Vec::new();
     let mut brut_mere: Vec<Option<[u8; ID_BYTES]>> = Vec::new();
@@ -178,6 +185,7 @@ fn main() -> Result<()> {
     let mut ind_appreciation: Vec<u16> = Vec::new();
 
     let mut anomalies = Anomalies::default();
+    let mut nb_records: u32 = 0;
     let mut n: u32 = 0;
 
     for (numero, ligne) in lecteur.lines().enumerate() {
@@ -205,6 +213,9 @@ fn main() -> Result<()> {
         noms.pousser(nom)?;
         slugs.pousser(slug)?;
         filiations.pousser(r.filiation_texte.as_deref().unwrap_or(""))?;
+        let record = r.record.as_deref().unwrap_or("");
+        nb_records += u32::from(!record.is_empty());
+        records.pousser(record)?;
 
         col.race.push(match r.race.as_deref() {
             Some(v) if !v.is_empty() => races.intern16(v, "race")?,
@@ -223,6 +234,13 @@ fn main() -> Result<()> {
             }
             _ => u8::MAX,
         });
+        col.statut_reproducteur
+            .push(match r.statut_reproducteur.as_deref() {
+                Some(v) if !v.is_empty() => {
+                    statuts_reproducteur.intern16(v, "statut de reproducteur")?
+                }
+                _ => SANS_MODALITE,
+            });
         col.annee.push(if let Some(a) = r.annee_naissance {
             anomalies.annee_naissance_min =
                 Some(anomalies.annee_naissance_min.map_or(a, |m| m.min(a)));
@@ -307,7 +325,10 @@ fn main() -> Result<()> {
     eprintln!("→ {n} lignes analysées en {:.1?}", debut.elapsed());
 
     eprintln!("→ résolution du graphe de filiation");
-    let mut pendants = 0u32;
+    let mut references = 0u32;
+    let mut references_pendantes = 0u32;
+    let mut pendants_distincts: HashSet<[u8; ID_BYTES]> = HashSet::new();
+    let mut cible_referencee = vec![false; n as usize];
     let mut liens_rompus: Vec<(u32, u8, String)> = Vec::new();
     let mut resoudre = |brut: Vec<Option<[u8; ID_BYTES]>>, genre: u8| -> Vec<u32> {
         brut.into_iter()
@@ -316,10 +337,13 @@ fn main() -> Result<()> {
                 let Some(id) = id else {
                     return SANS_PARENT;
                 };
+                references += 1;
                 if let Some(&cible) = index_id.get(&id) {
+                    cible_referencee[cible as usize] = true;
                     return cible;
                 }
-                pendants += 1;
+                references_pendantes += 1;
+                pendants_distincts.insert(id);
                 if let Some(nom) = noms_lien[row * 3 + genre as usize].take() {
                     liens_rompus.push((row as u32, genre, nom));
                 }
@@ -330,7 +354,12 @@ fn main() -> Result<()> {
     let col_pere = resoudre(brut_pere, 0);
     let col_mere = resoudre(brut_mere, 1);
     let col_pdm = resoudre(brut_pdm, 2);
-    anomalies.parents_pendants = pendants;
+    anomalies.references_de_parents = references;
+    anomalies.references_pendantes = references_pendantes;
+    anomalies.parents_pendants = pendants_distincts.len() as u32;
+    anomalies.parents_references =
+        cible_referencee.iter().filter(|&&vu| vu).count() as u32 + anomalies.parents_pendants;
+    drop((pendants_distincts, cible_referencee));
     liens_rompus.sort_unstable_by_key(|(row, genre, _)| (*row, *genre));
     lien_alias.sort_unstable_by_key(|(row, genre, _)| (*row, *genre));
     drop((index_id, noms_lien));
@@ -356,12 +385,26 @@ fn main() -> Result<()> {
         ind_code.len()
     );
     eprintln!(
-        "  anomalies : {} sans filiation, {} parents pendants, {} sans millésime, {} sans robe, {} slugs non déductibles",
-        anomalies.sans_filiation,
+        "  filiation : {} parents distincts cités, dont {} absents ({} citations sur {})",
+        anomalies.parents_references,
         anomalies.parents_pendants,
+        anomalies.references_pendantes,
+        anomalies.references_de_parents
+    );
+    eprintln!(
+        "  anomalies : {} sans filiation, {} sans millésime, {} sans robe, {} slugs non déductibles",
+        anomalies.sans_filiation,
         anomalies.annee_naissance_absente,
         anomalies.robe_absente,
         anomalies.slugs_non_deductibles
+    );
+    eprintln!(
+        "  champs déclarés : {nb_records} records, {} statuts de reproducteur ({} modalités)",
+        col.statut_reproducteur
+            .iter()
+            .filter(|&&s| s != SANS_MODALITE)
+            .count(),
+        statuts_reproducteur.valeurs.len()
     );
     if let (Some(min), Some(max)) = (anomalies.annee_naissance_min, anomalies.annee_naissance_max) {
         eprintln!("  millésimes : {min} → {max}");
@@ -375,6 +418,13 @@ fn main() -> Result<()> {
             licence: args.licence,
             url_modele: URL_MODELE.to_string(),
             ingere_le: aujourdhui_iso(),
+            fichier_source: args
+                .source
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            octets_source,
+            algorithme_empreinte: ALGORITHME_EMPREINTE.to_string(),
             empreinte_source: empreinte,
             lignes: n,
             anomalies,
@@ -387,14 +437,17 @@ fn main() -> Result<()> {
         dict_disciplines: disciplines.valeurs,
         dict_codes_indice: codes_indice.valeurs,
         dict_appreciations: appreciations.valeurs,
+        dict_statuts_reproducteur: statuts_reproducteur.valeurs,
         ids: col.ids,
         noms,
         slugs,
         filiations,
+        records,
         race: col.race,
         robe: col.robe,
         sexe: col.sexe,
         annee: col.annee,
+        statut_reproducteur: col.statut_reproducteur,
         pere: col_pere,
         mere: col_mere,
         pere_de_mere: col_pdm,
@@ -434,19 +487,21 @@ fn dossier_parent(chemin: &Path) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn empreinte_fichier(chemin: &Path) -> Result<String> {
+fn empreinte_fichier(chemin: &Path) -> Result<(String, u64)> {
     let mut f = std::fs::File::open(chemin)
         .with_context(|| format!("ouverture de {}", chemin.display()))?;
     let mut h = blake3::Hasher::new();
     let mut tampon = vec![0u8; 1 << 22];
+    let mut octets = 0u64;
     loop {
         let lus = f.read(&mut tampon)?;
         if lus == 0 {
             break;
         }
+        octets += lus as u64;
         h.update(&tampon[..lus]);
     }
-    Ok(h.finalize().to_hex().to_string())
+    Ok((h.finalize().to_hex().to_string(), octets))
 }
 
 fn aujourdhui_iso() -> String {

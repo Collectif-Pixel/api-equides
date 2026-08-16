@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
-pub const FORMAT_VERSION: u32 = 5;
+pub const FORMAT_VERSION: u32 = 6;
 
 pub const SANS_PARENT: u32 = u32::MAX;
 pub const SANS_MODALITE: u16 = u16::MAX;
@@ -17,7 +17,10 @@ pub struct Anomalies {
     pub annee_naissance_max: Option<i32>,
     pub robe_absente: u32,
     pub sans_filiation: u32,
+    pub parents_references: u32,
     pub parents_pendants: u32,
+    pub references_de_parents: u32,
+    pub references_pendantes: u32,
     pub identifiants_illisibles: u32,
     pub slugs_non_deductibles: u32,
 }
@@ -29,6 +32,9 @@ pub struct DatasetMeta {
     pub licence: String,
     pub url_modele: String,
     pub ingere_le: String,
+    pub fichier_source: String,
+    pub octets_source: u64,
+    pub algorithme_empreinte: String,
     pub empreinte_source: String,
     pub lignes: u32,
     pub anomalies: Anomalies,
@@ -83,16 +89,19 @@ pub struct Snapshot {
     pub dict_disciplines: Vec<String>,
     pub dict_codes_indice: Vec<String>,
     pub dict_appreciations: Vec<String>,
+    pub dict_statuts_reproducteur: Vec<String>,
 
     pub ids: Vec<u8>,
     pub noms: Arene,
     pub slugs: Arene,
     pub filiations: Arene,
+    pub records: Arene,
 
     pub race: Vec<u16>,
     pub robe: Vec<u16>,
     pub sexe: Vec<u8>,
     pub annee: Vec<i16>,
+    pub statut_reproducteur: Vec<u16>,
 
     pub pere: Vec<u32>,
     pub mere: Vec<u32>,
@@ -163,6 +172,7 @@ impl Snapshot {
         colonne("robe", self.robe.len())?;
         colonne("sexe", self.sexe.len())?;
         colonne("annee", self.annee.len())?;
+        colonne("statut_reproducteur", self.statut_reproducteur.len())?;
         colonne("pere", self.pere.len())?;
         colonne("mere", self.mere.len())?;
         colonne("pere_de_mere", self.pere_de_mere.len())?;
@@ -176,6 +186,7 @@ impl Snapshot {
         colonne("noms", self.noms.len())?;
         colonne("slugs", self.slugs.len())?;
         colonne("filiations", self.filiations.len())?;
+        colonne("records", self.records.len())?;
 
         anyhow::ensure!(
             self.ids.len() == n * crate::ids::ID_BYTES,

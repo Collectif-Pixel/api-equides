@@ -27,6 +27,14 @@ curl '…/v1/equides?race=Trotteur%20Francais,Pur%20Sang'        # virgules
 Les valeurs sont insensibles à la casse et aux accents : `pur sang`,
 `PUR SANG` et `Pur Sang` désignent la même race.
 
+`statut_reproducteur` filtre sur ce que la source **déclare**, indépendamment de
+la descendance connue :
+
+```sh
+# Les poulinières déclarées, qu'elles aient ou non un produit enregistré
+curl 'https://api-equides.org/v1/equides?statut_reproducteur=Pouliniere'
+```
+
 ## Découvrir les valeurs admises
 
 Sans cette liste, rien ne laisse deviner que la source écrit `Trotteur Francais`
@@ -38,10 +46,11 @@ curl 'https://api-equides.org/v1/referentiels/races'
 
 | Dimension | Contenu |
 |---|---|
-| `races` | le champ `race` d'une fiche — [pollué par la source](/donnees/defauts/) |
-| `races_lien` | les 13 races propres déclarées sur les liens de filiation |
+| `races` | le champ `race` d'une fiche, en libellé développé |
+| `races_lien` | les codes abrégés portés par les liens de filiation — [une autre nomenclature](/donnees/defauts/) |
 | `robes` | robes renseignées |
 | `sexes` | `Femelle`, `Male`, `Hongre`, `Indeter` |
+| `statuts_reproducteur` | `Pouliniere`, `Etalon Actif`… — [déclaré, pas calculé](/donnees/defauts/) |
 | `disciplines` | disciplines portant des performances |
 | `codes_indice` | `BTR`, `ISO`, `ITR`… |
 | `annees_naissance` | millésimes, par ordre chronologique |

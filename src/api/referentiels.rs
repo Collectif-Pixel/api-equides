@@ -60,6 +60,9 @@ pub async fn lister(
         "races" => modalites(&store.races, |c| store.bitmap_race(c)),
         "robes" => modalites(&store.robes, |c| store.bitmap_robe(c)),
         "sexes" => modalites(&store.sexes, |c| store.bitmap_sexe(c)),
+        "statuts_reproducteur" => modalites(&store.statuts_reproducteur, |c| {
+            store.bitmap_statut_reproducteur(c)
+        }),
         "disciplines" => modalites(&store.disciplines, |c| store.bitmap_discipline(c)),
         "codes_indice" => modalites(&store.codes_indice, |c| store.bitmap_code_indice(c)),
         "races_lien" => modalites(&store.races_lien, |_| None),
@@ -67,8 +70,8 @@ pub async fn lister(
             return Err(Erreur::parametre_invalide(
                 "dimension",
                 format!("référentiel inconnu « {autre} »"),
-                "référentiels disponibles : races, robes, sexes, disciplines, \
-                 codes_indice, races_lien, annees_naissance",
+                "référentiels disponibles : races, robes, sexes, statuts_reproducteur, \
+                 disciplines, codes_indice, races_lien, annees_naissance",
             ));
         }
     };

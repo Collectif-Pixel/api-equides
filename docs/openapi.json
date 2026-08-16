@@ -23,7 +23,19 @@
             "type": "integer"
           },
           "parents_pendants": {
-            "description": "Parents référencés mais absents du fichier : le lien est rompu, et exposé comme une absence de parent.",
+            "description": "Ceux d'entre eux qui sont absents du fichier : le lien est rompu, et exposé comme une absence de parent. Dénombrés par identifiant, pas par citation — un étalon absent cité mille fois compte pour un.",
+            "type": "integer"
+          },
+          "parents_references": {
+            "description": "Identifiants de parents distincts cités par au moins une fiche.",
+            "type": "integer"
+          },
+          "references_de_parents": {
+            "description": "Emplacements `pere`, `mere` ou `pere_de_mere` portant un identifiant, toutes fiches confondues.",
+            "type": "integer"
+          },
+          "references_pendantes": {
+            "description": "Ceux d'entre eux dont la cible manque. Toujours supérieur ou égal à `parents_pendants` : c'est le même défaut compté par citation plutôt que par identifiant.",
             "type": "integer"
           },
           "robe_absente": {
@@ -89,7 +101,7 @@
         "properties": {
           "donnees": {
             "items": {
-              "$ref": "#/components/schemas/Reference"
+              "$ref": "#/components/schemas/Produit"
             },
             "type": "array"
           },
@@ -156,7 +168,13 @@
             "type": "array"
           },
           "race": {
+            "description": "Libellé développé. Les objets `pere`, `mere` et `pere_de_mere` portent, eux, le code abrégé du lien.",
             "example": "Trotteur Francais",
+            "type": "string"
+          },
+          "record": {
+            "description": "Chrono de course déclaré par la source. Texte : ni comparable ni triable en l'état. Absent quand la source n'en publie pas.",
+            "example": "1'16\"7 (AEL3V)",
             "type": "string"
           },
           "robe": {
@@ -174,6 +192,11 @@
           },
           "slug": {
             "example": "qabalah-mercury",
+            "type": "string"
+          },
+          "statut_reproducteur": {
+            "description": "Statut déclaré à la reproduction, là où `nombre_de_descendants` est calculé : une poulinière sans produit enregistré porte quand même son statut. Son absence est un silence de la source, pas une négation.",
+            "example": "Pouliniere",
             "type": "string"
           },
           "url": {
@@ -195,11 +218,21 @@
       "JeuDeDonnees": {
         "description": "Provenance de l'extraction servie. `source` et `ingere_le` sont ce que la mention obligatoire de réutilisation doit citer.",
         "properties": {
+          "algorithme_empreinte": {
+            "description": "Fonction de hachage employée pour `empreinte_source`. Publiée pour que l'empreinte soit reproductible sans avoir à deviner l'algorithme.",
+            "example": "blake3",
+            "type": "string"
+          },
           "anomalies": {
             "$ref": "#/components/schemas/Anomalies"
           },
           "empreinte_source": {
-            "description": "Empreinte blake3 du fichier source : elle identifie exactement l'extraction servie.",
+            "description": "Empreinte du fichier ingéré, octet pour octet — pas celle d'un export normalisé. Elle identifie exactement l'extraction servie.",
+            "type": "string"
+          },
+          "fichier_source": {
+            "description": "Nom du fichier d'extraction ingéré, celui que `empreinte_source` et `octets_source` décrivent.",
+            "example": "chevaux.jsonl",
             "type": "string"
           },
           "ingere_le": {
@@ -210,6 +243,10 @@
             "type": "string"
           },
           "lignes": {
+            "type": "integer"
+          },
+          "octets_source": {
+            "description": "Taille exacte du fichier ingéré.",
             "type": "integer"
           },
           "producteur": {
@@ -435,7 +472,7 @@
             "type": "string"
           },
           "documentation": {
-            "example": "/",
+            "example": "https://docs.api-equides.org",
             "type": "string"
           },
           "indice": {
@@ -468,6 +505,42 @@
           "title",
           "status",
           "detail"
+        ],
+        "type": "object"
+      },
+      "Produit": {
+        "description": "Un produit direct, décrit comme un nœud de pedigree : mêmes champs, même sens.",
+        "properties": {
+          "annee_naissance": {
+            "example": 2004,
+            "type": "integer"
+          },
+          "fiche_disponible": {
+            "description": "Toujours vrai : un produit est une fiche du jeu.",
+            "type": "boolean"
+          },
+          "id": {
+            "example": "QylKqa2SStCCxjmFVYNvvg",
+            "type": "string"
+          },
+          "nom": {
+            "example": "PAMPA D'ARPO",
+            "type": "string"
+          },
+          "race": {
+            "type": "string"
+          },
+          "sexe": {
+            "example": "Femelle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nom",
+          "race",
+          "sexe",
+          "fiche_disponible"
         ],
         "type": "object"
       },
@@ -635,6 +708,14 @@
           "avec_performances": {
             "type": "integer"
           },
+          "avec_record": {
+            "description": "Fiches portant un chrono de course déclaré.",
+            "type": "integer"
+          },
+          "avec_statut_reproducteur": {
+            "description": "Fiches portant un statut déclaré à la reproduction, toutes modalités confondues.",
+            "type": "integer"
+          },
           "avertissement": {
             "description": "Rappel du sens de « sans performances », que le seul effectif induirait en erreur.",
             "type": "string"
@@ -734,32 +815,20 @@
       "name": "Fiches d'origine",
       "url": "https://infochevaux.ifce.fr"
     },
-    "description": "API REST ouverte sur les fiches publiques d'équidés de l'IFCE, avec généalogie et indices de performance.\n\n**Service indépendant, non affilié à l'IFCE.** La donnée servie est une extraction datée ; les fiches en ligne font seules autorité.\n\n**Données** : Extraction des fiches publiques d'infochevaux.ifce.fr, 4446638 fiches. Licence : Licence Ouverte / réutilisation d'informations publiques (CRPA art. L321-1). Mentionnez la source et la date de mise à jour, exposées par `/v1/meta`. Aucune donnée à caractère personnel n'est exposée.\n\n**Sans authentification** : ni clé, ni jeton, ni compte.\n\n## Limites\n\nDébit 50 unités par seconde et par adresse, rafale 200 — une requête ordinaire coûte une unité, les réponses volumineuses davantage. Concurrence 8, délai 5 s. Pagination 100 lignes, profondeur 10000. Pedigree 8 générations. Requête 64 paramètres et 4096 octets. Référentiels tronqués à 2000 modalités.\n\nLes réponses portent un `ETag` et un `Cache-Control` d'une heure ; une revalidation `If-None-Match` renvoie `304` sans rien recalculer. Les erreurs suivent la RFC 9457, en `application/problem+json`.",
+    "description": "API REST ouverte sur les fiches publiques d'équidés de l'IFCE, avec généalogie et indices de performance.\n\n**Service indépendant, non affilié à l'IFCE.** La donnée servie est une extraction datée ; les fiches en ligne font seules autorité.\n\n**Données** : Extraction des fiches publiques d'infochevaux.ifce.fr, 4446638 fiches. Licence : Licence Ouverte / réutilisation d'informations publiques (CRPA art. L321-1). Mentionnez la source et la date de mise à jour, exposées par `/v1/meta`. Aucune donnée à caractère personnel n'est exposée.\n\n**Sans authentification** : ni clé, ni jeton, ni compte.\n\n## Limites\n\nDébit 50 unités par seconde et par adresse, rafale 200 — une requête ordinaire coûte une unité, les réponses volumineuses davantage. Concurrence 48, délai 5 s. Pagination 100 lignes, profondeur 10000. Pedigree 8 générations. Requête 64 paramètres et 4096 octets. Référentiels tronqués à 2000 modalités.\n\nLes réponses portent un `ETag` et un `Cache-Control` d'une heure ; une revalidation `If-None-Match` renvoie `304` sans rien recalculer. Les erreurs suivent la RFC 9457, en `application/problem+json`.",
     "license": {
       "identifier": "MIT",
       "name": "MIT (code)"
     },
     "summary": "Interrogation des données publiques des équidés enregistrés en France depuis 1976.",
     "title": "API Équidés",
-    "version": "0.1.0"
+    "version": "1.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
     "/": {
       "get": {
-        "description": "Une seule URL à retenir. La négociation de contenu évite d'avoir à choisir : un navigateur reçoit cette page, un client qui envoie `Accept: application/json` reçoit le document de découverte — routes servies et gabarits d'URL.",
-        "parameters": [
-          {
-            "description": "`application/json` pour la découverte ; toute autre valeur, ou aucune, sert la documentation en HTML.",
-            "example": "application/json",
-            "in": "header",
-            "name": "Accept",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "description": "Le point d'entrée : routes servies, gabarits d'URL, licence et provenance. Un client qui ne connaît que cette URL y trouve de quoi construire toutes les autres. La documentation destinée aux humains vit sur <https://docs.api-equides.org>.",
         "responses": {
           "200": {
             "content": {
@@ -767,14 +836,9 @@
                 "schema": {
                   "$ref": "#/components/schemas/Decouverte"
                 }
-              },
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
               }
             },
-            "description": "Documentation HTML, ou document de découverte JSON."
+            "description": "Document de découverte."
           },
           "304": {
             "description": "Contenu inchangé depuis l'`ETag` fourni en `If-None-Match`. Aucun corps, et rien n'est recalculé côté service."
@@ -800,7 +864,7 @@
             "description": "Capacité de traitement simultané atteinte, délai maximal dépassé, ou données non chargées. `Retry-After` indique le délai."
           }
         },
-        "summary": "Documentation, ou document de découverte",
+        "summary": "Document de découverte",
         "tags": [
           "Service"
         ]
@@ -943,8 +1007,8 @@
         "description": "Les filtres d'une même dimension se combinent en OU, les dimensions différentes en ET.\n\nLes lignes sont renvoyées en **résumé** par défaut ; `vue=complet` sert les fiches entières.\n\nAucune réponse ne porte de lien déductible d'un identifiant : les gabarits d'URL sont publiés par `GET /`.",
         "parameters": [
           {
-            "description": "Race, répétable pour un OU (`?race=A&race=B`) ou séparée par des virgules. Insensible à la casse et aux accents. Le jeu compte 11 747 races distinctes ; valeurs admises sur /v1/referentiels/races.",
-            "example": "Pur Sang",
+            "description": "Race, répétable pour un OU (`?race=A&race=B`) ou séparée par des virgules. Insensible à la casse et aux accents. Le jeu compte 211 races distinctes ; valeurs admises sur /v1/referentiels/races. Attention : les objets `pere`, `mere` et `pere_de_mere` portent le code abrégé du lien (/v1/referentiels/races_lien), que ce filtre n'accepte pas.",
+            "example": "Trotteur Francais",
             "in": "query",
             "name": "race",
             "required": false,
@@ -973,6 +1037,19 @@
             "example": "Femelle",
             "in": "query",
             "name": "sexe",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Statut déclaré à la reproduction. Distinct de la descendance connue : une poulinière sans produit enregistré porte quand même son statut. Valeurs admises : /v1/referentiels/statuts_reproducteur.",
+            "example": "Pouliniere",
+            "in": "query",
+            "name": "statut_reproducteur",
             "required": false,
             "schema": {
               "items": {
@@ -1474,7 +1551,7 @@
         "description": "Sans cette liste, un intégrateur ne peut pas deviner que la source écrit `Trotteur Francais` sans cédille ni accent, ni que le sexe se dit `Femelle` et non `F`.\n\nLes modalités sont rendues de la plus fréquente à la plus rare, et la liste est tronquée à 2000 entrées — `nombre_de_modalites` donne alors le total réel et `note` signale la troncature. `annees_naissance` fait exception : rendu en entier, par ordre chronologique.",
         "parameters": [
           {
-            "description": "Référentiel demandé. `races_lien` porte les 13 races propres déclarées sur les liens de filiation, là où `races` reflète un champ pollué par la source.",
+            "description": "Référentiel demandé. `races` liste les 211 libellés développés portés par les fiches ; `races_lien` les 198 codes abrégés portés par les liens de filiation. Ce sont deux nomenclatures distinctes, et seule la première est admise par le filtre `race=`.",
             "example": "races",
             "in": "path",
             "name": "dimension",
@@ -1484,6 +1561,7 @@
                 "races",
                 "robes",
                 "sexes",
+                "statuts_reproducteur",
                 "disciplines",
                 "codes_indice",
                 "races_lien",
@@ -1549,8 +1627,8 @@
         "description": "Renvoie des suggestions **classées par pertinence**, pour alimenter un champ de saisie.\n\nÀ distinguer de `/v1/equides?nom=…`, qui filtre et pagine sans classer. Ici le coût est borné par `limite` et non par la popularité du préfixe : la réponse doit arriver avant la frappe suivante.",
         "parameters": [
           {
-            "description": "Début de nom, insensible à la casse et aux accents. Obligatoire et non vide.",
-            "example": "qab",
+            "description": "Début de nom, insensible à la casse et aux accents. Obligatoire et non vide.\n\nLes espaces comptent : chaque mot déjà saisi doit se retrouver dans le nom, seul le dernier est traité comme un début de mot. `INVICTUS DU F` ne suggère donc que des noms portant `INVICTUS`, `DU`, et un mot commençant par `F`.",
+            "example": "invictus du f",
             "in": "query",
             "name": "q",
             "required": true,
@@ -1673,8 +1751,8 @@
         "description": "Accepte les mêmes filtres que la recherche : la répartition porte sur la sélection filtrée.\n\nDe quoi peupler des facettes sans rapatrier les lignes : seuls les effectifs traversent le réseau.",
         "parameters": [
           {
-            "description": "Race, répétable pour un OU (`?race=A&race=B`) ou séparée par des virgules. Insensible à la casse et aux accents. Le jeu compte 11 747 races distinctes ; valeurs admises sur /v1/referentiels/races.",
-            "example": "Pur Sang",
+            "description": "Race, répétable pour un OU (`?race=A&race=B`) ou séparée par des virgules. Insensible à la casse et aux accents. Le jeu compte 211 races distinctes ; valeurs admises sur /v1/referentiels/races. Attention : les objets `pere`, `mere` et `pere_de_mere` portent le code abrégé du lien (/v1/referentiels/races_lien), que ce filtre n'accepte pas.",
+            "example": "Trotteur Francais",
             "in": "query",
             "name": "race",
             "required": false,
@@ -1703,6 +1781,19 @@
             "example": "Femelle",
             "in": "query",
             "name": "sexe",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Statut déclaré à la reproduction. Distinct de la descendance connue : une poulinière sans produit enregistré porte quand même son statut. Valeurs admises : /v1/referentiels/statuts_reproducteur.",
+            "example": "Pouliniere",
+            "in": "query",
+            "name": "statut_reproducteur",
             "required": false,
             "schema": {
               "items": {
@@ -1791,7 +1882,7 @@
             }
           },
           {
-            "description": "Dimension à ventiler : `race`, `robe`, `sexe`, `discipline`, `annee_naissance`.",
+            "description": "Dimension à ventiler : `race`, `robe`, `sexe`, `statut_reproducteur`, `discipline`, `annee_naissance`.",
             "example": "race",
             "in": "query",
             "name": "dimension",
@@ -1802,6 +1893,7 @@
                 "race",
                 "robe",
                 "sexe",
+                "statut_reproducteur",
                 "discipline",
                 "annee_naissance"
               ],
@@ -1912,35 +2004,35 @@
       "quand": "Un paramètre est inconnu, mal typé, hors bornes, ou porte une valeur que le référentiel n'admet pas. Le champ `parametre` le nomme et `indice` propose la correction — une faute de frappe reçoit la suggestion du paramètre le plus proche.",
       "statut": 400,
       "titre": "Paramètre invalide",
-      "uri": "/#erreur-parametre-invalide"
+      "uri": "https://docs.api-equides.org/guides/erreurs/#erreur-parametre-invalide"
     },
     {
       "ancre": "erreur-requete-invalide",
       "quand": "La requête ne peut pas être traitée telle quelle, sans qu'un paramètre précis soit en cause.",
       "statut": 400,
       "titre": "Requête invalide",
-      "uri": "/#erreur-requete-invalide"
+      "uri": "https://docs.api-equides.org/guides/erreurs/#erreur-requete-invalide"
     },
     {
       "ancre": "erreur-introuvable",
       "quand": "L'identifiant ne correspond à aucune fiche du jeu de données, ou la route n'existe pas. Un identifiant mal formé donne le même résultat qu'un identifiant inconnu.",
       "statut": 404,
       "titre": "Ressource introuvable",
-      "uri": "/#erreur-introuvable"
+      "uri": "https://docs.api-equides.org/guides/erreurs/#erreur-introuvable"
     },
     {
       "ancre": "erreur-trop-de-requetes",
       "quand": "Le quota de débit de l'adresse appelante est dépassé. La réponse porte un `Retry-After` indiquant le délai à respecter.",
       "statut": 429,
       "titre": "Trop de requêtes",
-      "uri": "/#erreur-trop-de-requetes"
+      "uri": "https://docs.api-equides.org/guides/erreurs/#erreur-trop-de-requetes"
     },
     {
       "ancre": "erreur-service-surcharge",
       "quand": "La capacité de traitement simultané est atteinte, ou la requête a dépassé le délai maximal. Le service refuse tôt, avec un `Retry-After`, plutôt que de faire attendre une réponse qui expirerait.",
       "statut": 503,
       "titre": "Service momentanément surchargé",
-      "uri": "/#erreur-service-surcharge"
+      "uri": "https://docs.api-equides.org/guides/erreurs/#erreur-service-surcharge"
     }
   ]
 }

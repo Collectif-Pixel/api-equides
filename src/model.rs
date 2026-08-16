@@ -96,6 +96,10 @@ pub struct Equide<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annee_naissance: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub record: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statut_reproducteur: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub filiation_texte: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pere: Option<Reference<'a>>,
@@ -142,6 +146,8 @@ impl<'a> Equide<'a> {
             sexe: store.sexe_libelle(row),
             robe: non_vide(store.robe_libelle(row)),
             annee_naissance: store.annee(row),
+            record: non_vide(store.record(row)),
+            statut_reproducteur: non_vide(store.statut_reproducteur_libelle(row)),
             filiation_texte: non_vide(store.filiation_texte(row)),
             pere: store
                 .lien(row, crate::store::PERE)
