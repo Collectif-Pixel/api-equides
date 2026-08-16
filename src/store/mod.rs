@@ -2,7 +2,7 @@ pub mod dict;
 pub mod index;
 
 pub use dict::Dict;
-use index::{Bitmaps, construire_bitmaps, construire_descendance, permutation_par_annee};
+use index::{Bitmaps, Tailles, construire_bitmaps, construire_descendance, permutation_par_annee};
 pub use index::{Descendance, Lien, MERE, PERE, PERE_DE_MERE, Permutation};
 
 use crate::ids::{self, ID_BYTES};
@@ -23,11 +23,13 @@ pub struct Store {
     pub disciplines: Dict,
     pub codes_indice: Dict,
     pub appreciations: Dict,
+    pub statuts_reproducteur: Dict,
 
     race: Vec<u16>,
     robe: Vec<u16>,
     sexe: Vec<u8>,
     annee: Vec<i16>,
+    statut_reproducteur: Vec<u16>,
 
     pere: Vec<u32>,
     mere: Vec<u32>,
@@ -41,6 +43,7 @@ pub struct Store {
     noms: Arene,
     slugs: Arene,
     filiations: Arene,
+    records: Arene,
 
     perf_bornes: Vec<u32>,
     perf_discipline: Vec<u16>,
@@ -57,11 +60,13 @@ pub struct Store {
     idx_race: Vec<RoaringBitmap>,
     idx_robe: Vec<RoaringBitmap>,
     idx_sexe: Vec<RoaringBitmap>,
+    idx_statut_reproducteur: Vec<RoaringBitmap>,
     idx_discipline: Vec<RoaringBitmap>,
     idx_code_indice: Vec<RoaringBitmap>,
     idx_annee: BTreeMap<i16, RoaringBitmap>,
     bm_tous: RoaringBitmap,
     bm_avec_performances: RoaringBitmap,
+    bm_avec_record: RoaringBitmap,
 
     tri_nom: Permutation,
     tri_annee: Permutation,
@@ -81,6 +86,7 @@ impl Store {
         let disciplines = Dict::new(std::mem::take(&mut snap.dict_disciplines));
         let codes_indice = Dict::new(std::mem::take(&mut snap.dict_codes_indice));
         let appreciations = Dict::new(std::mem::take(&mut snap.dict_appreciations));
+        let statuts_reproducteur = Dict::new(std::mem::take(&mut snap.dict_statuts_reproducteur));
 
         let bm_tous = if n == 0 {
             RoaringBitmap::new()
@@ -115,11 +121,14 @@ impl Store {
                 let h_desc = portee.spawn(|| construire_descendance(&snap));
                 let bitmaps = construire_bitmaps(
                     &snap,
-                    races.len(),
-                    robes.len(),
-                    sexes.len(),
-                    disciplines.len(),
-                    codes_indice.len(),
+                    &Tailles {
+                        races: races.len(),
+                        robes: robes.len(),
+                        sexes: sexes.len(),
+                        statuts_reproducteur: statuts_reproducteur.len(),
+                        disciplines: disciplines.len(),
+                        codes_indice: codes_indice.len(),
+                    },
                 );
                 (
                     h_noms.join().expect("construction de l'index des noms"),
@@ -135,10 +144,12 @@ impl Store {
             idx_race,
             idx_robe,
             idx_sexe,
+            idx_statut_reproducteur,
             idx_discipline,
             idx_code_indice,
             idx_annee,
             bm_avec_performances,
+            bm_avec_record,
         } = bitmaps;
 
         Self {
@@ -152,10 +163,12 @@ impl Store {
             disciplines,
             codes_indice,
             appreciations,
+            statuts_reproducteur,
             race: snap.race,
             robe: snap.robe,
             sexe: snap.sexe,
             annee: snap.annee,
+            statut_reproducteur: snap.statut_reproducteur,
             pere: snap.pere,
             mere: snap.mere,
             pere_de_mere: snap.pere_de_mere,
@@ -173,6 +186,7 @@ impl Store {
             noms: snap.noms,
             slugs: snap.slugs,
             filiations: snap.filiations,
+            records: snap.records,
             perf_bornes: snap.perf_bornes,
             perf_discipline: snap.perf_discipline,
             perf_textes: snap.perf_textes,
@@ -186,11 +200,13 @@ impl Store {
             idx_race,
             idx_robe,
             idx_sexe,
+            idx_statut_reproducteur,
             idx_discipline,
             idx_code_indice,
             idx_annee,
             bm_tous,
             bm_avec_performances,
+            bm_avec_record,
             tri_nom,
             tri_annee,
             descendance,
@@ -221,6 +237,19 @@ impl Store {
     #[inline]
     pub fn robe_libelle(&self, row: u32) -> &str {
         libelle_ou_vide(&self.robes, self.robe[row as usize])
+    }
+
+    #[inline]
+    pub fn record(&self, row: u32) -> &str {
+        self.records.get(row as usize)
+    }
+
+    #[inline]
+    pub fn statut_reproducteur_libelle(&self, row: u32) -> &str {
+        libelle_ou_vide(
+            &self.statuts_reproducteur,
+            self.statut_reproducteur[row as usize],
+        )
     }
 
     #[inline]
@@ -374,6 +403,10 @@ impl Store {
         self.idx_sexe.get(code as usize)
     }
 
+    pub fn bitmap_statut_reproducteur(&self, code: u32) -> Option<&RoaringBitmap> {
+        self.idx_statut_reproducteur.get(code as usize)
+    }
+
     pub fn bitmap_discipline(&self, code: u32) -> Option<&RoaringBitmap> {
         self.idx_discipline.get(code as usize)
     }
@@ -390,6 +423,20 @@ impl Store {
 
     pub fn bitmap_avec_performances(&self) -> &RoaringBitmap {
         &self.bm_avec_performances
+    }
+
+    pub fn bitmap_avec_record(&self) -> &RoaringBitmap {
+        &self.bm_avec_record
+    }
+
+    pub fn nombre_avec_statut_reproducteur(&self) -> u64 {
+        self.statuts_reproducteur
+            .iter()
+            .map(|(code, _)| {
+                self.bitmap_statut_reproducteur(code)
+                    .map_or(0, roaring::RoaringBitmap::len)
+            })
+            .sum()
     }
 
     pub fn annees(&self) -> impl Iterator<Item = (i32, u64)> {
@@ -537,7 +584,10 @@ pub mod tests {
         let mut noms = Arene::nouvelle();
         let mut slugs = Arene::nouvelle();
         let mut filiations = Arene::nouvelle();
+        let mut records = Arene::nouvelle();
         let (mut race, mut robe, mut sexe, mut annee) = (vec![], vec![], vec![], vec![]);
+        let mut statut_reproducteur = Vec::new();
+        let mut dict_statuts: Vec<String> = Vec::new();
         let mut index: HashMap<&str, u32> = HashMap::new();
 
         for (i, l) in LIGNES.iter().enumerate() {
@@ -548,6 +598,14 @@ pub mod tests {
                 .pousser(&l.1.to_lowercase().replace(' ', "-"))
                 .unwrap();
             filiations.pousser("").unwrap();
+            records
+                .pousser(if i == 4 { "1'16\"7 (AEL3V)" } else { "" })
+                .unwrap();
+            statut_reproducteur.push(match i {
+                0 => intern(&mut dict_statuts, "Etalon Actif"),
+                1 | 3 => intern(&mut dict_statuts, "Pouliniere"),
+                _ => SANS_MODALITE,
+            });
             race.push(intern(&mut dicts[0], l.2));
             sexe.push(intern(&mut dicts[2], l.3) as u8);
             robe.push(if l.4.is_empty() {
@@ -600,10 +658,16 @@ pub mod tests {
                 licence: "Non déterminée".into(),
                 url_modele: "https://infochevaux.ifce.fr/fr/{slug}-{id}/infos-generales".into(),
                 ingere_le: "2026-01-01".into(),
+                fichier_source: "test.jsonl".into(),
+                octets_source: 1024,
+                algorithme_empreinte: "blake3".into(),
                 empreinte_source: "test".into(),
                 lignes: n as u32,
                 anomalies: Anomalies {
+                    parents_references: 5,
                     parents_pendants: 1,
+                    references_de_parents: 5,
+                    references_pendantes: 1,
                     ..Default::default()
                 },
             },
@@ -615,14 +679,17 @@ pub mod tests {
             dict_disciplines: vec!["TROT COURSE".into()],
             dict_codes_indice: vec!["BTR".into()],
             dict_appreciations: vec![],
+            dict_statuts_reproducteur: dict_statuts,
             ids: ids_plats,
             noms,
             slugs,
             filiations,
+            records,
             race,
             robe,
             sexe,
             annee,
+            statut_reproducteur,
             pere,
             mere,
             pere_de_mere: vec![SANS_PARENT; n],

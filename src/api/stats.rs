@@ -20,6 +20,8 @@ struct Global<'a> {
     sans_performances: u64,
     avec_filiation: u64,
     sans_filiation: u64,
+    avec_record: u64,
+    avec_statut_reproducteur: u64,
     par_sexe: Vec<Tranche>,
     nombre_de_races: usize,
     nombre_de_robes: usize,
@@ -51,6 +53,8 @@ pub async fn global(State(etat): State<EtatPartage>) -> Result<Response, Erreur>
         sans_performances: total as u64 - perfs,
         avec_filiation: total as u64 - sans_filiation,
         sans_filiation,
+        avec_record: s.bitmap_avec_record().len(),
+        avec_statut_reproducteur: s.nombre_avec_statut_reproducteur(),
         par_sexe,
         nombre_de_races: s.races.len(),
         nombre_de_robes: s.robes.len(),
@@ -126,6 +130,12 @@ pub async fn repartition(State(etat): State<EtatPartage>, uri: Uri) -> Result<Re
         "race" => ventiler_dimension(&selection, &store.races, |c| store.bitmap_race(c), limite),
         "robe" => ventiler_dimension(&selection, &store.robes, |c| store.bitmap_robe(c), limite),
         "sexe" => ventiler_dimension(&selection, &store.sexes, |c| store.bitmap_sexe(c), limite),
+        "statut_reproducteur" => ventiler_dimension(
+            &selection,
+            &store.statuts_reproducteur,
+            |c| store.bitmap_statut_reproducteur(c),
+            limite,
+        ),
         "discipline" => ventiler_dimension(
             &selection,
             &store.disciplines,
@@ -143,7 +153,8 @@ pub async fn repartition(State(etat): State<EtatPartage>, uri: Uri) -> Result<Re
             return Err(Erreur::parametre_invalide(
                 "dimension",
                 format!("dimension inconnue « {autre} »"),
-                "dimensions disponibles : race, robe, sexe, discipline, annee_naissance",
+                "dimensions disponibles : race, robe, sexe, statut_reproducteur, \
+                 discipline, annee_naissance",
             ));
         }
     };

@@ -51,28 +51,34 @@ pub(super) struct Bitmaps {
     pub(super) idx_race: Vec<RoaringBitmap>,
     pub(super) idx_robe: Vec<RoaringBitmap>,
     pub(super) idx_sexe: Vec<RoaringBitmap>,
+    pub(super) idx_statut_reproducteur: Vec<RoaringBitmap>,
     pub(super) idx_discipline: Vec<RoaringBitmap>,
     pub(super) idx_code_indice: Vec<RoaringBitmap>,
     pub(super) idx_annee: BTreeMap<i16, RoaringBitmap>,
     pub(super) bm_avec_performances: RoaringBitmap,
+    pub(super) bm_avec_record: RoaringBitmap,
 }
 
-pub(super) fn construire_bitmaps(
-    snap: &Snapshot,
-    races: usize,
-    robes: usize,
-    sexes: usize,
-    disciplines: usize,
-    codes_indice: usize,
-) -> Bitmaps {
+pub(super) struct Tailles {
+    pub(super) races: usize,
+    pub(super) robes: usize,
+    pub(super) sexes: usize,
+    pub(super) statuts_reproducteur: usize,
+    pub(super) disciplines: usize,
+    pub(super) codes_indice: usize,
+}
+
+pub(super) fn construire_bitmaps(snap: &Snapshot, tailles: &Tailles) -> Bitmaps {
     let mut b = Bitmaps {
-        idx_race: vec![RoaringBitmap::new(); races],
-        idx_robe: vec![RoaringBitmap::new(); robes],
-        idx_sexe: vec![RoaringBitmap::new(); sexes],
-        idx_discipline: vec![RoaringBitmap::new(); disciplines],
-        idx_code_indice: vec![RoaringBitmap::new(); codes_indice],
+        idx_race: vec![RoaringBitmap::new(); tailles.races],
+        idx_robe: vec![RoaringBitmap::new(); tailles.robes],
+        idx_sexe: vec![RoaringBitmap::new(); tailles.sexes],
+        idx_statut_reproducteur: vec![RoaringBitmap::new(); tailles.statuts_reproducteur],
+        idx_discipline: vec![RoaringBitmap::new(); tailles.disciplines],
+        idx_code_indice: vec![RoaringBitmap::new(); tailles.codes_indice],
         idx_annee: BTreeMap::new(),
         bm_avec_performances: RoaringBitmap::new(),
+        bm_avec_record: RoaringBitmap::new(),
     };
     const CROISSANT: &str = "insertion en ordre croissant";
     for row in 0..snap.meta.lignes {
@@ -89,6 +95,14 @@ pub(super) fn construire_bitmaps(
         }
         if snap.sexe[i] != u8::MAX {
             b.idx_sexe[snap.sexe[i] as usize]
+                .try_push(row)
+                .expect(CROISSANT);
+        }
+        if !snap.records.get(i).is_empty() {
+            b.bm_avec_record.try_push(row).expect(CROISSANT);
+        }
+        if snap.statut_reproducteur[i] != SANS_MODALITE {
+            b.idx_statut_reproducteur[snap.statut_reproducteur[i] as usize]
                 .try_push(row)
                 .expect(CROISSANT);
         }

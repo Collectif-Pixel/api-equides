@@ -31,6 +31,7 @@ pub struct Filtres {
     pub races: Vec<String>,
     pub robes: Vec<String>,
     pub sexes: Vec<String>,
+    pub statuts_reproducteur: Vec<String>,
     pub disciplines: Vec<String>,
     pub codes_indice: Vec<String>,
     pub annees_naissance: Vec<i32>,
@@ -45,6 +46,7 @@ impl Filtres {
         self.races.is_empty()
             && self.robes.is_empty()
             && self.sexes.is_empty()
+            && self.statuts_reproducteur.is_empty()
             && self.disciplines.is_empty()
             && self.codes_indice.is_empty()
             && self.annees_naissance.is_empty()
@@ -105,6 +107,18 @@ pub fn resoudre<'a>(
     appliquer_dimension(&mut acc, &filtres.sexes, "sexe", "sexes", |v| {
         store.sexes.code(v).and_then(|c| store.bitmap_sexe(c))
     })?;
+    appliquer_dimension(
+        &mut acc,
+        &filtres.statuts_reproducteur,
+        "statut_reproducteur",
+        "statuts_reproducteur",
+        |v| {
+            store
+                .statuts_reproducteur
+                .code(v)
+                .and_then(|c| store.bitmap_statut_reproducteur(c))
+        },
+    )?;
     appliquer_dimension(
         &mut acc,
         &filtres.disciplines,
