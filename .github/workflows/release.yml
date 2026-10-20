@@ -40,7 +40,7 @@ jobs:
             @semantic-release/changelog@7 \
             @semantic-release/exec@7 \
             @semantic-release/git@11 \
-            conventional-changelog-conventionalcommits@10
+            conventional-changelog-conventionalcommits@9
 
       - name: Publier
         id: publication
