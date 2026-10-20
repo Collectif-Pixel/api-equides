@@ -253,8 +253,8 @@ mod tests {
     #[test]
     fn un_mot_saisi_sans_correspondance_ne_suggere_rien() {
         let idx = index_test();
-        assert!(noms(&idx, "GRAND ZZZ").is_empty());
-        assert!(noms(&idx, "ZZZ GRAND").is_empty());
+        assert_eq!(noms(&idx, "GRAND ZZZ"), Vec::<u32>::new());
+        assert_eq!(noms(&idx, "ZZZ GRAND"), Vec::<u32>::new());
     }
 
     #[test]

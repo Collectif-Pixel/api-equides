@@ -1,5 +1,6 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
+use equides_api::api::extractions::{Extractions, TELECHARGEMENTS_MAX};
 use equides_api::api::{Etat, router, router_admin};
 use equides_api::ids;
 use equides_api::metrics::Metrics;
@@ -9,7 +10,8 @@ use equides_api::snapshot::{
 };
 use equides_api::store::Store;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock};
 use tower::ServiceExt;
 
 type LigneTest = (
@@ -243,11 +245,38 @@ fn snapshot_test() -> Snapshot {
     }
 }
 
-fn etat() -> Arc<Etat> {
+static EXTRACTIONS: LazyLock<PathBuf> = LazyLock::new(|| {
+    dossier_extractions(
+        "extractions",
+        &[
+            "2025-06-01_empreinte-anterieure.jsonl.zst",
+            "2026-03-01_empreinte-a-venir.jsonl.zst",
+            "2026-01-01_empreinte-de-test.jsonl.zst",
+            "notes.txt",
+        ],
+    )
+});
+
+fn dossier_extractions(nom: &str, fichiers: &[&str]) -> PathBuf {
+    let dossier = Path::new(env!("CARGO_TARGET_TMPDIR")).join(nom);
+    let _ = std::fs::remove_dir_all(&dossier);
+    std::fs::create_dir_all(&dossier).unwrap();
+    for f in fichiers {
+        std::fs::write(dossier.join(f), f).unwrap();
+    }
+    dossier
+}
+
+fn etat_avec(extractions: &Path) -> Arc<Etat> {
     Arc::new(Etat {
         store: Store::from_snapshot(snapshot_test()),
         metrics: Metrics::new(),
+        extractions: Extractions::lire(extractions).expect("dossier de test lisible"),
     })
+}
+
+fn etat() -> Arc<Etat> {
+    etat_avec(&EXTRACTIONS)
 }
 
 fn app() -> axum::Router {
@@ -289,7 +318,7 @@ async fn get_avec(
     )
 }
 
-async fn get_sur(app: &axum::Router, uri: &str) -> (StatusCode, header::HeaderMap) {
+async fn reponse_sur(app: &axum::Router, uri: &str) -> axum::response::Response {
     let mut req = Request::builder()
         .uri(uri)
         .method("GET")
@@ -300,8 +329,21 @@ async fn get_sur(app: &axum::Router, uri: &str) -> (StatusCode, header::HeaderMa
             [203, 0, 113, 7],
             1234,
         ))));
-    let reponse = app.clone().oneshot(req).await.expect("réponse du routeur");
+    app.clone().oneshot(req).await.expect("réponse du routeur")
+}
+
+async fn get_sur(app: &axum::Router, uri: &str) -> (StatusCode, header::HeaderMap) {
+    let reponse = reponse_sur(app, uri).await;
     (reponse.status(), reponse.headers().clone())
+}
+
+async fn json_sur(app: &axum::Router, uri: &str) -> serde_json::Value {
+    let reponse = reponse_sur(app, uri).await;
+    assert_eq!(reponse.status(), StatusCode::OK, "GET {uri}");
+    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024 * 1024)
+        .await
+        .expect("corps de réponse");
+    serde_json::from_slice(&octets).expect("corps JSON valide")
 }
 
 async fn json(uri: &str) -> serde_json::Value {
@@ -783,6 +825,208 @@ async fn les_exports_ont_ete_retires() {
 }
 
 #[tokio::test]
+async fn les_extractions_sont_listees_de_la_plus_recente_a_la_plus_ancienne() {
+    let v = json("/v1/extractions").await;
+    let donnees = v["donnees"].as_array().unwrap();
+    let dates: Vec<&str> = donnees
+        .iter()
+        .map(|e| e["ingere_le"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        dates,
+        ["2026-03-01", "2026-01-01", "2025-06-01"],
+        "un fichier qui ne suit pas le nommage n'est pas une extraction"
+    );
+
+    let servie = &donnees[1];
+    assert_eq!(servie["servie"], true);
+    assert_eq!(servie["empreinte_source"], "empreinte-de-test");
+    assert_eq!(
+        servie["octets"],
+        "2026-01-01_empreinte-de-test.jsonl.zst".len()
+    );
+    assert_eq!(
+        servie["telechargement"],
+        "/v1/extractions/empreinte-de-test"
+    );
+    assert!(servie.get("chemin").is_none());
+    assert_eq!(donnees[0]["servie"], false);
+    assert_eq!(donnees[2]["servie"], false);
+}
+
+#[tokio::test]
+async fn la_derniere_extraction_est_celle_que_l_api_sert() {
+    let (statut, entetes, _) = get("/v1/extractions/derniere").await;
+    assert_eq!(statut, StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(
+        entetes[header::LOCATION],
+        "/v1/extractions/empreinte-de-test",
+        "une version publiée mais pas encore servie ne doit pas contredire /v1/meta"
+    );
+}
+
+#[tokio::test]
+async fn une_extraction_precise_sert_son_fichier_tel_quel() {
+    let (statut, entetes, corps) = get_avec(
+        "/v1/extractions/empreinte-anterieure",
+        vec![("accept-encoding", "gzip")],
+    )
+    .await;
+    assert_eq!(statut, StatusCode::OK);
+    assert_eq!(entetes[header::CONTENT_TYPE], "application/zstd");
+    assert!(
+        entetes.get(header::CONTENT_ENCODING).is_none(),
+        "recompresser un fichier déjà compressé coûte du calcul sans rien gagner"
+    );
+    assert_eq!(corps, "2025-06-01_empreinte-anterieure.jsonl.zst");
+    assert_eq!(
+        entetes[header::CONTENT_DISPOSITION],
+        "attachment; filename=\"chevaux-2025-06-01.jsonl.zst\"",
+        "un navigateur enregistrerait sinon le fichier sous son empreinte, sans extension"
+    );
+
+    let (statut, entetes, _) = get("/v1/extractions/inconnue").await;
+    assert_eq!(statut, StatusCode::NOT_FOUND);
+    assert!(
+        entetes[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with("application/problem+json")
+    );
+}
+
+#[tokio::test]
+async fn un_telechargement_interrompu_reprend_ou_il_s_est_arrete() {
+    let (statut, _, corps) = get_avec(
+        "/v1/extractions/empreinte-anterieure",
+        vec![("range", "bytes=11-")],
+    )
+    .await;
+    assert_eq!(statut, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(corps, "empreinte-anterieure.jsonl.zst");
+}
+
+#[tokio::test]
+async fn sans_dossier_les_extractions_sont_introuvables() {
+    let app = router(etat_avec(
+        &Path::new(env!("CARGO_TARGET_TMPDIR")).join("absent"),
+    ));
+    for uri in ["/v1/extractions", "/v1/extractions/derniere"] {
+        assert_eq!(get_sur(&app, uri).await.0, StatusCode::NOT_FOUND, "{uri}");
+    }
+    assert_eq!(
+        get_sur(&app, "/v1/equides").await.0,
+        StatusCode::OK,
+        "le reste du service ne dépend pas des extractions"
+    );
+
+    let racine = json_sur(&app, "/").await;
+    assert!(
+        racine["endpoints"].get("extractions").is_none(),
+        "la découverte n'annonce que des routes servies"
+    );
+    assert!(racine["gabarits_url"].get("extraction").is_none());
+    assert!(
+        !json_sur(&app, "/v1/meta")
+            .await
+            .to_string()
+            .contains("/v1/extractions"),
+        "/v1/meta ne renvoie pas vers une route qui répond 404"
+    );
+}
+
+#[tokio::test]
+async fn la_derniere_est_introuvable_tant_que_la_version_servie_n_est_pas_publiee() {
+    let dossier = dossier_extractions(
+        "sans-la-version-servie",
+        &["2025-06-01_empreinte-anterieure.jsonl.zst"],
+    );
+    let app = router(etat_avec(&dossier));
+    assert_eq!(
+        get_sur(&app, "/v1/extractions/derniere").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert!(
+        json_sur(&app, "/")
+            .await
+            .get("endpoints")
+            .and_then(|e| e.get("derniere_extraction"))
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn un_fichier_mal_nomme_ou_en_double_n_est_pas_une_extraction() {
+    let dossier = dossier_extractions(
+        "nommage",
+        &[
+            "2026-01-01_empreinte-de-test.jsonl.zst",
+            "2026-02-01_empreinte-de-test.jsonl.zst",
+            "._2026-01-01_empreinte-de-test.jsonl.zst",
+            "2026-13-01_mois-impossible.jsonl.zst",
+            "2026-01-01_.jsonl.zst",
+        ],
+    );
+    std::fs::create_dir(dossier.join("2025-01-01_un-dossier.jsonl.zst")).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("absent", dossier.join("2025-02-01_lien-casse.jsonl.zst")).unwrap();
+
+    let v = json_sur(&router(etat_avec(&dossier)), "/v1/extractions").await;
+    let donnees = v["donnees"].as_array().unwrap();
+    assert_eq!(
+        donnees.len(),
+        1,
+        "un doublon, un fichier caché de macOS, une date impossible ou une entrée \
+         illisible ne sont pas des extractions : {donnees:?}"
+    );
+    assert_eq!(donnees[0]["empreinte_source"], "empreinte-de-test");
+    assert_eq!(donnees[0]["servie"], true);
+}
+
+#[tokio::test]
+async fn les_telechargements_simultanes_sont_plafonnes() {
+    let app = router(etat_avec(&EXTRACTIONS));
+    let uri = "/v1/extractions/empreinte-anterieure";
+    let mut en_cours = Vec::new();
+    for _ in 0..TELECHARGEMENTS_MAX {
+        let reponse = reponse_sur(&app, uri).await;
+        assert_eq!(reponse.status(), StatusCode::OK);
+        en_cours.push(reponse);
+    }
+
+    let refus = reponse_sur(&app, uri).await;
+    assert_eq!(
+        refus.status(),
+        StatusCode::SERVICE_UNAVAILABLE,
+        "un téléchargement garde sa place jusqu'à la fin du corps, pas seulement des en-têtes"
+    );
+    assert!(refus.headers().contains_key(header::RETRY_AFTER));
+
+    drop(en_cours.pop());
+    assert_eq!(
+        reponse_sur(&app, uri).await.status(),
+        StatusCode::OK,
+        "un téléchargement terminé ou abandonné rend sa place"
+    );
+}
+
+#[tokio::test]
+async fn l_etag_suit_le_dossier_et_pas_seulement_l_image() {
+    let dossier = dossier_extractions(
+        "avant-publication",
+        &["2025-06-01_empreinte-anterieure.jsonl.zst"],
+    );
+    let (_, a) = get_sur(&router(etat_avec(&dossier)), "/v1/extractions").await;
+    let (_, b) = get_sur(&app(), "/v1/extractions").await;
+    assert_ne!(
+        a[header::ETAG],
+        b[header::ETAG],
+        "publier un fichier après avoir déployé l'image change la liste sans changer \
+         l'empreinte servie : une revalidation renverrait l'ancienne liste"
+    );
+}
+
+#[tokio::test]
 async fn cache_etag_et_revalidation() {
     let (statut, entetes, _) = get("/v1/equides").await;
     assert_eq!(statut, StatusCode::OK);
@@ -959,7 +1203,12 @@ async fn la_racine_sert_le_document_de_decouverte() {
     let v = json("/").await;
 
     assert_eq!(v["endpoints"]["autocompletion"], "/v1/search?q=");
+    assert_eq!(v["endpoints"]["extractions"], "/v1/extractions");
     assert_eq!(v["gabarits_url"]["fiche"], "/v1/equides/{id}");
+    assert_eq!(
+        v["gabarits_url"]["extraction"],
+        "/v1/extractions/{empreinte}"
+    );
     assert!(v["licence_donnees"].is_string());
     assert_eq!(v["documentation"], "https://docs.api-equides.org");
 }

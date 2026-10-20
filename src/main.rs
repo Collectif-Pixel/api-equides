@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use axum::ServiceExt;
 use axum::extract::Request;
 use clap::Parser;
+use equides_api::api::extractions::Extractions;
 use equides_api::api::{Etat, router, router_admin};
 use equides_api::metrics::Metrics;
 use equides_api::snapshot::Snapshot;
@@ -22,6 +23,9 @@ use tower_http::normalize_path::NormalizePathLayer;
 struct Args {
     #[arg(long, env = "EQUIDES_IMAGE", default_value = "data/equides.bin")]
     image: PathBuf,
+
+    #[arg(long, env = "EQUIDES_EXTRACTIONS", default_value = "data/extractions")]
+    extractions: PathBuf,
 
     #[arg(long, env = "EQUIDES_ADRESSE", default_value = "0.0.0.0:8081")]
     adresse: SocketAddr,
@@ -63,6 +67,7 @@ async fn main() -> Result<()> {
     let etat = Arc::new(Etat {
         store,
         metrics: Metrics::new(),
+        extractions: Extractions::lire(&args.extractions)?,
     });
 
     let app = NormalizePathLayer::trim_trailing_slash().layer(router(etat.clone()));

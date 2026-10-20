@@ -567,7 +567,13 @@ mod tests {
     fn page_vide_au_dela_du_resultat() {
         let s = store_test();
         let tous = resoudre(&s, &Filtres::default()).unwrap();
-        assert!(paginer(&s, &tous, Tri::Nom, Sens::Croissant, 100, 10).is_empty());
-        assert!(paginer(&s, &tous, Tri::Naturel, Sens::Croissant, 100, 10).is_empty());
+        assert_eq!(
+            paginer(&s, &tous, Tri::Nom, Sens::Croissant, 100, 10),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            paginer(&s, &tous, Tri::Naturel, Sens::Croissant, 100, 10),
+            Vec::<u32>::new()
+        );
     }
 }

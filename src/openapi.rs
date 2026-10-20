@@ -563,6 +563,32 @@ fn schemas() -> Value {
                 "slugs_non_deductibles": { "type": "integer" }
             }
         },
+        "Extraction": {
+            "type": "object",
+            "description": "Une version publiée du fichier source.",
+            "required": ["empreinte_source", "ingere_le", "octets", "servie", "telechargement"],
+            "properties": {
+                "empreinte_source": {
+                    "type": "string",
+                    "description": "Empreinte du fichier source tel qu'ingéré, après \
+                                    décompression du fichier téléchargé : elle se compare \
+                                    directement à celle de `/v1/meta`."
+                },
+                "ingere_le": { "type": "string", "description": "Date d'ingestion, ISO 8601." },
+                "octets": {
+                    "type": "integer",
+                    "description": "Taille du fichier téléchargé, compressé en zstd."
+                },
+                "servie": {
+                    "type": "boolean",
+                    "description": "Vrai pour l'extraction que sert l'API."
+                },
+                "telechargement": {
+                    "type": "string",
+                    "description": "Route qui sert le fichier."
+                }
+            }
+        },
         "Decouverte": {
             "type": "object",
             "description": "Document de découverte servi à la racine sur `Accept: application/json`.",
@@ -816,6 +842,7 @@ pub fn document(store: &Store) -> Value {
             { "name": "Généalogie", "description": "Ascendance et descendance." },
             { "name": "Référentiels", "description": "Valeurs admises par les filtres." },
             { "name": "Statistiques", "description": "Agrégats et répartitions." },
+            { "name": "Extractions", "description": "Téléchargement du fichier source entier." },
             { "name": "Service", "description": "Découverte, métadonnées et exploitation." }
         ],
         "x-erreurs": erreurs(),
@@ -1098,6 +1125,75 @@ pub fn document(store: &Store) -> Value {
                     }))
                 }
             },
+            "/v1/extractions": {
+                "get": {
+                    "tags": ["Extractions"],
+                    "summary": "Lister les extractions téléchargeables",
+                    "description": "Chaque version publiée du fichier source, de la plus \
+                                    récente à la plus ancienne. `servie` désigne celle que \
+                                    l'API sert, décrite par `/v1/meta` ; une version plus \
+                                    récente peut être publiée avant d'être servie.\n\n\
+                                    Pour la donnée entière, préférez ce téléchargement à la \
+                                    pagination de `/v1/equides`.",
+                    "responses": reponses(json!({
+                        "200": {
+                            "description": "Extractions publiées.",
+                            "content": { "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["donnees"],
+                                    "properties": {
+                                        "donnees": {
+                                            "type": "array",
+                                            "items": { "$ref": "#/components/schemas/Extraction" }
+                                        }
+                                    }
+                                }
+                            }}
+                        },
+                        "404": reponse_erreur("Cette instance ne publie aucune extraction.")
+                    }))
+                }
+            },
+            "/v1/extractions/derniere": {
+                "get": {
+                    "tags": ["Extractions"],
+                    "summary": "Télécharger l'extraction servie",
+                    "description": "Redirige vers l'extraction que l'API sert : son empreinte \
+                                    est celle de `/v1/meta`, si bien que le fichier et les \
+                                    réponses de l'API ne se contredisent jamais.",
+                    "responses": reponses(json!({
+                        "307": {
+                            "description": "Redirection vers `/v1/extractions/{empreinte}`, \
+                                            désignée par `Location`."
+                        },
+                        "404": reponse_erreur("L'extraction servie n'est pas encore publiée.")
+                    }))
+                }
+            },
+            "/v1/extractions/{empreinte}": {
+                "get": {
+                    "tags": ["Extractions"],
+                    "summary": "Télécharger une extraction précise",
+                    "parameters": [{
+                        "name": "empreinte", "in": "path", "required": true,
+                        "description": "`empreinte_source` de l'extraction, telle que la listent \
+                                        `/v1/extractions` et `/v1/meta`.",
+                        "schema": { "type": "string" }
+                    }],
+                    "responses": reponses(json!({
+                        "200": {
+                            "description": "Le fichier source, compressé en zstd. `Range` permet \
+                                            de reprendre un téléchargement interrompu.",
+                            "content": { "application/zstd": {
+                                "schema": { "type": "string", "format": "binary" }
+                            }}
+                        },
+                        "206": { "description": "La portion demandée par `Range`." },
+                        "404": reponse_erreur("Aucune extraction publiée ne porte cette empreinte.")
+                    }))
+                }
+            },
             "/": {
                 "get": {
                     "tags": ["Service"],
@@ -1274,6 +1370,9 @@ mod tests {
             "/v1/stats",
             "/v1/stats/repartition",
             "/v1/meta",
+            "/v1/extractions",
+            "/v1/extractions/derniere",
+            "/v1/extractions/{empreinte}",
             "/openapi.json",
             "/healthz",
             "/readyz",
