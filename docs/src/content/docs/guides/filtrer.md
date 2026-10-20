@@ -111,7 +111,7 @@ La réponse porte les liens des pages voisines, filtres conservés :
 
 :::caution[L'extraction en masse ne passe pas par l'API]
 Au-delà de 10 000 de profondeur, la pagination s'arrête. Affinez les filtres,
-ou téléchargez le fichier publié — `/v1/meta` en donne la source et la date.
+ou téléchargez l'extraction entière sur `/v1/extractions/derniere`.
 :::
 
 ## Compter sans rapatrier

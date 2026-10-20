@@ -92,6 +92,18 @@ personne.
 
 ## Extraction en masse
 
-Elle ne passe pas par l'API. Le jeu complet se télécharge : `/v1/meta` en donne
-la source, la date et l'empreinte. Paginer 4,4 millions de lignes serait plus
-lent pour vous et plus coûteux pour tout le monde.
+Elle ne passe pas par la pagination : paginer 4,4 millions de lignes serait plus
+lent pour vous et plus coûteux pour tout le monde. Le fichier source entier se
+télécharge.
+
+```sh
+curl -L -o chevaux.jsonl.zst 'https://api-equides.org/v1/extractions/derniere'
+zstd -d chevaux.jsonl.zst
+b3sum chevaux.jsonl    # redonne l'empreinte_source de /v1/meta
+```
+
+`/v1/extractions/derniere` redirige vers l'extraction que sert l'API : le
+fichier et les réponses ne se contredisent jamais. `/v1/extractions` liste les
+versions publiées, de la plus récente à la plus ancienne, avec leur date, leur
+empreinte et leur taille ; `/v1/extractions/{empreinte}` sert l'une d'elles. Un
+téléchargement interrompu reprend avec `curl -C -`.

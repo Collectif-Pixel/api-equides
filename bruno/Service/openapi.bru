@@ -18,7 +18,7 @@ tests {
   test("décrit tous les endpoints publics", function() {
     const p = Object.keys(res.getBody().paths);
     ["/v1/equides", "/v1/equides/{id}", "/v1/equides/{id}/pedigree",
-     "/v1/equides/{id}/descendance", "/v1/export.csv"].forEach(function(c) {
+     "/v1/equides/{id}/descendance", "/v1/extractions"].forEach(function(c) {
       expect(p).to.contain(c);
     });
   });

@@ -1,5 +1,6 @@
 pub mod equides;
 pub mod erreur;
+pub mod extractions;
 pub mod meta;
 pub mod params;
 pub mod protection;
@@ -19,6 +20,7 @@ use std::time::{Duration, Instant};
 use tower::ServiceBuilder;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
+use tower_http::compression::predicate::{DefaultPredicate, NotForContentType, Predicate};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::timeout::TimeoutLayer;
@@ -27,6 +29,7 @@ use tower_http::trace::TraceLayer;
 pub struct Etat {
     pub store: Store,
     pub metrics: Metrics,
+    pub extractions: extractions::Extractions,
 }
 
 pub type EtatPartage = Arc<Etat>;
@@ -51,6 +54,12 @@ pub fn router(etat: EtatPartage) -> Router {
         .route("/v1/stats", get(stats::global))
         .route("/v1/stats/repartition", get(stats::repartition))
         .route("/v1/meta", get(meta::meta))
+        .route("/v1/extractions", get(extractions::lister))
+        .route("/v1/extractions/derniere", get(extractions::derniere))
+        .route(
+            "/v1/extractions/{empreinte}",
+            get(extractions::par_empreinte),
+        )
         .route("/openapi.json", get(meta::openapi))
         .route("/healthz", get(meta::sante))
         .route("/readyz", get(meta::sante))
@@ -84,7 +93,9 @@ pub fn router(etat: EtatPartage) -> Router {
                         .expose_headers([header::ETAG]),
                 )
                 .layer(axum::middleware::from_fn_with_state(etat.clone(), cache))
-                .layer(CompressionLayer::new()),
+                .layer(CompressionLayer::new().compress_when(
+                    DefaultPredicate::new().and(NotForContentType::const_new("application/zstd")),
+                )),
         )
         .fallback(meta::route_inconnue)
         .with_state(etat)
@@ -110,6 +121,7 @@ async fn mesurer(State(etat): State<EtatPartage>, req: Request, next: Next) -> R
 async fn cache(State(etat): State<EtatPartage>, req: Request, next: Next) -> Response {
     let mut h = blake3::Hasher::new();
     h.update(etat.store.empreinte().as_bytes());
+    h.update(etat.extractions.empreinte.as_bytes());
     h.update(req.uri().path().as_bytes());
     h.update(b"?");
     h.update(req.uri().query().unwrap_or("").as_bytes());

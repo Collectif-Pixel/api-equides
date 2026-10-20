@@ -26,12 +26,15 @@ pub async fn racine(State(etat): State<EtatPartage>) -> Result<Response, Erreur>
             "statistiques": "/v1/stats",
             "repartitions": "/v1/stats/repartition?dimension=race",
             "metadonnees": "/v1/meta",
+            "extractions": "/v1/extractions",
+            "derniere_extraction": "/v1/extractions/derniere",
             "sante": "/healthz"
         },
         "gabarits_url": {
             "fiche": "/v1/equides/{id}",
             "pedigree": "/v1/equides/{id}/pedigree",
             "descendance": "/v1/equides/{id}/descendance",
+            "extraction": "/v1/extractions/{empreinte}",
             "fiche_source": etat.store.meta.url_modele,
         },
         "licence_donnees": etat.store.meta.licence,
@@ -146,7 +149,8 @@ fn remarques(store: &crate::store::Store) -> Vec<String> {
              `ingere_le` y pourvoient. `empreinte_source` désigne l'extraction sans ambiguïté : \
              c'est l'empreinte {algo}, annoncée par `algorithme_empreinte`, du fichier \
              `{fichier}` tel qu'ingéré — octet pour octet, {octets} octets, et non un export \
-             normalisé. Hacher le fichier publié doit redonner exactement cette valeur.",
+             normalisé. Hacher le fichier publié sur /v1/extractions, une fois décompressé, \
+             doit redonner exactement cette valeur.",
             algo = store.meta.algorithme_empreinte,
             fichier = store.meta.fichier_source,
             octets = milliers(store.meta.octets_source),

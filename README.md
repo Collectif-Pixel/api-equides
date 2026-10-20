@@ -38,12 +38,22 @@ Image de **601 Mio**, démarrage en **4,4 s**, **~1,1 Gio** résidents.
 | `/v1/referentiels/{dimension}` | Valeurs admises par les filtres |
 | `/v1/stats` · `/v1/stats/repartition` | Agrégats et facettes |
 | `/v1/meta` | Provenance, licence, anomalies |
+| `/v1/extractions` · `/v1/extractions/derniere` | Téléchargement du fichier source, version servie ou antérieure |
 | `/` | Document de découverte : routes servies et gabarits d'URL |
 | `/openapi.json` | Description OpenAPI 3.1 |
 | `/healthz` · `/readyz` | Sondes |
 | `/metrics` | Prometheus — **port d'administration uniquement** |
 
 Filtres combinables, insensibles à la casse et aux accents ; erreurs [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ; `ETag` et `Cache-Control`. Le détail — filtres, tri, pagination, quotas — est dans les [guides](https://docs.api-equides.org/guides/premiers-pas/).
+
+## Publier les extractions
+
+`/v1/extractions` sert les fichiers déposés dans `data/extractions/` (`--extractions` ou `EQUIDES_EXTRACTIONS`), lu au démarrage. Chacun se nomme `<ingere_le>_<empreinte_source>.jsonl.zst`, d'après `/v1/meta` ; le jour de l'ingestion :
+
+```sh
+zstd chevaux.jsonl
+cp chevaux.jsonl.zst "data/extractions/$(date +%F)_$(b3sum --no-names chevaux.jsonl).jsonl.zst"
+```
 
 ## Architecture
 

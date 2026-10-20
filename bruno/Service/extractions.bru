@@ -1,0 +1,39 @@
+meta {
+  name: Extractions téléchargeables
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/v1/extractions
+  body: none
+  auth: none
+}
+
+tests {
+  test("répond 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("une seule extraction est servie", function() {
+    const servies = res.getBody().donnees.filter(e => e.servie);
+    expect(servies).to.have.lengthOf(1);
+  });
+
+  test("chaque extraction se télécharge par son empreinte", function() {
+    for (const e of res.getBody().donnees) {
+      expect(e.telechargement).to.equal("/v1/extractions/" + e.empreinte_source);
+    }
+  });
+}
+
+docs {
+  Versions publiées du fichier source, de la plus récente à la plus ancienne.
+
+  `/v1/extractions/derniere` redirige vers celle que sert l'API, dont
+  l'empreinte est celle de `/v1/meta` ; `/v1/extractions/{empreinte}` sert
+  une version précise. L'empreinte porte sur le fichier décompressé.
+
+  Exige une instance dont le dossier d'extractions (`EQUIDES_EXTRACTIONS`)
+  publie la version servie.
+}
