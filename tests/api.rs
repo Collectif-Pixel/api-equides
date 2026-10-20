@@ -1,6 +1,6 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use equides_api::api::extractions::Extractions;
+use equides_api::api::extractions::{Extractions, TELECHARGEMENTS_MAX};
 use equides_api::api::{Etat, router, router_admin};
 use equides_api::ids;
 use equides_api::metrics::Metrics;
@@ -318,7 +318,7 @@ async fn get_avec(
     )
 }
 
-async fn get_sur(app: &axum::Router, uri: &str) -> (StatusCode, header::HeaderMap) {
+async fn reponse_sur(app: &axum::Router, uri: &str) -> axum::response::Response {
     let mut req = Request::builder()
         .uri(uri)
         .method("GET")
@@ -329,8 +329,21 @@ async fn get_sur(app: &axum::Router, uri: &str) -> (StatusCode, header::HeaderMa
             [203, 0, 113, 7],
             1234,
         ))));
-    let reponse = app.clone().oneshot(req).await.expect("réponse du routeur");
+    app.clone().oneshot(req).await.expect("réponse du routeur")
+}
+
+async fn get_sur(app: &axum::Router, uri: &str) -> (StatusCode, header::HeaderMap) {
+    let reponse = reponse_sur(app, uri).await;
     (reponse.status(), reponse.headers().clone())
+}
+
+async fn json_sur(app: &axum::Router, uri: &str) -> serde_json::Value {
+    let reponse = reponse_sur(app, uri).await;
+    assert_eq!(reponse.status(), StatusCode::OK, "GET {uri}");
+    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024 * 1024)
+        .await
+        .expect("corps de réponse");
+    serde_json::from_slice(&octets).expect("corps JSON valide")
 }
 
 async fn json(uri: &str) -> serde_json::Value {
@@ -866,6 +879,11 @@ async fn une_extraction_precise_sert_son_fichier_tel_quel() {
         "recompresser un fichier déjà compressé coûte du calcul sans rien gagner"
     );
     assert_eq!(corps, "2025-06-01_empreinte-anterieure.jsonl.zst");
+    assert_eq!(
+        entetes[header::CONTENT_DISPOSITION],
+        "attachment; filename=\"chevaux-2025-06-01.jsonl.zst\"",
+        "un navigateur enregistrerait sinon le fichier sous son empreinte, sans extension"
+    );
 
     let (statut, entetes, _) = get("/v1/extractions/inconnue").await;
     assert_eq!(statut, StatusCode::NOT_FOUND);
@@ -901,6 +919,20 @@ async fn sans_dossier_les_extractions_sont_introuvables() {
         StatusCode::OK,
         "le reste du service ne dépend pas des extractions"
     );
+
+    let racine = json_sur(&app, "/").await;
+    assert!(
+        racine["endpoints"].get("extractions").is_none(),
+        "la découverte n'annonce que des routes servies"
+    );
+    assert!(racine["gabarits_url"].get("extraction").is_none());
+    assert!(
+        !json_sur(&app, "/v1/meta")
+            .await
+            .to_string()
+            .contains("/v1/extractions"),
+        "/v1/meta ne renvoie pas vers une route qui répond 404"
+    );
 }
 
 #[tokio::test]
@@ -909,11 +941,72 @@ async fn la_derniere_est_introuvable_tant_que_la_version_servie_n_est_pas_publie
         "sans-la-version-servie",
         &["2025-06-01_empreinte-anterieure.jsonl.zst"],
     );
+    let app = router(etat_avec(&dossier));
     assert_eq!(
-        get_sur(&router(etat_avec(&dossier)), "/v1/extractions/derniere")
-            .await
-            .0,
+        get_sur(&app, "/v1/extractions/derniere").await.0,
         StatusCode::NOT_FOUND
+    );
+    assert!(
+        json_sur(&app, "/")
+            .await
+            .get("endpoints")
+            .and_then(|e| e.get("derniere_extraction"))
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn un_fichier_mal_nomme_ou_en_double_n_est_pas_une_extraction() {
+    let dossier = dossier_extractions(
+        "nommage",
+        &[
+            "2026-01-01_empreinte-de-test.jsonl.zst",
+            "2026-02-01_empreinte-de-test.jsonl.zst",
+            "._2026-01-01_empreinte-de-test.jsonl.zst",
+            "2026-13-01_mois-impossible.jsonl.zst",
+            "2026-01-01_.jsonl.zst",
+        ],
+    );
+    std::fs::create_dir(dossier.join("2025-01-01_un-dossier.jsonl.zst")).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("absent", dossier.join("2025-02-01_lien-casse.jsonl.zst")).unwrap();
+
+    let v = json_sur(&router(etat_avec(&dossier)), "/v1/extractions").await;
+    let donnees = v["donnees"].as_array().unwrap();
+    assert_eq!(
+        donnees.len(),
+        1,
+        "un doublon, un fichier caché de macOS, une date impossible ou une entrée \
+         illisible ne sont pas des extractions : {donnees:?}"
+    );
+    assert_eq!(donnees[0]["empreinte_source"], "empreinte-de-test");
+    assert_eq!(donnees[0]["servie"], true);
+}
+
+#[tokio::test]
+async fn les_telechargements_simultanes_sont_plafonnes() {
+    let app = router(etat_avec(&EXTRACTIONS));
+    let uri = "/v1/extractions/empreinte-anterieure";
+    let mut en_cours = Vec::new();
+    for _ in 0..TELECHARGEMENTS_MAX {
+        let reponse = reponse_sur(&app, uri).await;
+        assert_eq!(reponse.status(), StatusCode::OK);
+        en_cours.push(reponse);
+    }
+
+    let refus = reponse_sur(&app, uri).await;
+    assert_eq!(
+        refus.status(),
+        StatusCode::SERVICE_UNAVAILABLE,
+        "un téléchargement garde sa place jusqu'à la fin du corps, pas seulement des en-têtes"
+    );
+    assert!(refus.headers().contains_key(header::RETRY_AFTER));
+
+    drop(en_cours.pop());
+    assert_eq!(
+        reponse_sur(&app, uri).await.status(),
+        StatusCode::OK,
+        "un téléchargement terminé ou abandonné rend sa place"
     );
 }
 

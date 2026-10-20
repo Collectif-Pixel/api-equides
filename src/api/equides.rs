@@ -66,8 +66,13 @@ pub async fn lister(State(etat): State<EtatPartage>, uri: Uri) -> Result<Respons
             .checked_sub(limite)
             .and_then(|o| lien_page(&uri, o, limite, total)),
         note: (total > OFFSET_MAX as u64).then_some(
-            "au-delà de 10 000 résultats, la pagination s'arrête : affinez les filtres, \
-             ou téléchargez l'extraction entière sur /v1/extractions/derniere",
+            if etat.extractions.publie(store.empreinte()) {
+                "au-delà de 10 000 résultats, la pagination s'arrête : affinez les filtres, \
+                 ou téléchargez l'extraction entière sur /v1/extractions/derniere"
+            } else {
+                "au-delà de 10 000 résultats, la pagination s'arrête : affinez les filtres, \
+                 ou téléchargez le fichier publié dont /v1/meta donne la source"
+            },
         ),
     };
 

@@ -408,6 +408,7 @@ dependencies = [
  "data-encoding",
  "form_urlencoded",
  "governor",
+ "http-body-util",
  "postcard",
  "roaring",
  "serde",

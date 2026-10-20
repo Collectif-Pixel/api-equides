@@ -48,12 +48,15 @@ Filtres combinables, insensibles à la casse et aux accents ; erreurs [RFC 9457]
 
 ## Publier les extractions
 
-`/v1/extractions` sert les fichiers déposés dans `data/extractions/` (`--extractions` ou `EQUIDES_EXTRACTIONS`), lu au démarrage. Chacun se nomme `<ingere_le>_<empreinte_source>.jsonl.zst`, d'après `/v1/meta` ; le jour de l'ingestion :
+`/v1/extractions` sert les fichiers déposés dans `data/extractions/` (`--extractions` ou `EQUIDES_EXTRACTIONS`), lu au démarrage. Chacun se nomme `<ingere_le>_<empreinte_source>.jsonl.zst`, valeurs que `/v1/meta` donne déjà, sans rien rehacher. Depuis une instance qui sert l'image :
 
 ```sh
-zstd chevaux.jsonl
-cp chevaux.jsonl.zst "data/extractions/$(date +%F)_$(b3sum --no-names chevaux.jsonl).jsonl.zst"
+NOM=$(curl -s localhost:8081/v1/meta \
+  | jq -r '.jeu_de_donnees | "\(.ingere_le)_\(.empreinte_source).jsonl.zst"')
+zstd -T0 -15 --long=27 chevaux.jsonl -o "data/extractions/$NOM"
 ```
+
+Puis redémarrer. `--long=27` divise la taille par 1,5 et reste décompressible par un `zstd -d` sans option.
 
 ## Architecture
 

@@ -7,7 +7,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 
 pub async fn racine(State(etat): State<EtatPartage>) -> Result<Response, Erreur> {
-    json(&serde_json::json!({
+    let mut decouverte = serde_json::json!({
         "nom": "API Équidés",
         "version": crate::VERSION,
         "description": "API REST ouverte sur les fiches publiques d'équidés de l'IFCE, \
@@ -26,20 +26,23 @@ pub async fn racine(State(etat): State<EtatPartage>) -> Result<Response, Erreur>
             "statistiques": "/v1/stats",
             "repartitions": "/v1/stats/repartition?dimension=race",
             "metadonnees": "/v1/meta",
-            "extractions": "/v1/extractions",
-            "derniere_extraction": "/v1/extractions/derniere",
             "sante": "/healthz"
         },
         "gabarits_url": {
             "fiche": "/v1/equides/{id}",
             "pedigree": "/v1/equides/{id}/pedigree",
             "descendance": "/v1/equides/{id}/descendance",
-            "extraction": "/v1/extractions/{empreinte}",
             "fiche_source": etat.store.meta.url_modele,
         },
         "licence_donnees": etat.store.meta.licence,
         "source": etat.store.meta.source,
-    }))
+    });
+    if etat.extractions.publie(etat.store.empreinte()) {
+        decouverte["endpoints"]["extractions"] = "/v1/extractions".into();
+        decouverte["endpoints"]["derniere_extraction"] = "/v1/extractions/derniere".into();
+        decouverte["gabarits_url"]["extraction"] = "/v1/extractions/{empreinte}".into();
+    }
+    json(&decouverte)
 }
 
 #[derive(Serialize)]
@@ -68,7 +71,7 @@ fn pourcentage(partie: u64, total: u64) -> String {
     format!("{:.1}", partie as f64 * 100.0 / total as f64).replace('.', ",")
 }
 
-fn remarques(store: &crate::store::Store) -> Vec<String> {
+fn remarques(store: &crate::store::Store, extraction_publiee: bool) -> Vec<String> {
     let a = &store.meta.anomalies;
     let total = u64::from(store.n);
     let perfs = store.bitmap_avec_performances().len();
@@ -149,11 +152,16 @@ fn remarques(store: &crate::store::Store) -> Vec<String> {
              `ingere_le` y pourvoient. `empreinte_source` désigne l'extraction sans ambiguïté : \
              c'est l'empreinte {algo}, annoncée par `algorithme_empreinte`, du fichier \
              `{fichier}` tel qu'ingéré — octet pour octet, {octets} octets, et non un export \
-             normalisé. Hacher le fichier publié sur /v1/extractions, une fois décompressé, \
-             doit redonner exactement cette valeur.",
+             normalisé. {verification}",
             algo = store.meta.algorithme_empreinte,
             fichier = store.meta.fichier_source,
             octets = milliers(store.meta.octets_source),
+            verification = if extraction_publiee {
+                "Hacher le fichier publié sur /v1/extractions, une fois décompressé, doit \
+                 redonner exactement cette valeur."
+            } else {
+                "Hacher le fichier publié doit redonner exactement cette valeur."
+            },
         ),
         "Cette API n'expose aucune donnée à caractère personnel : elle ne sert que des \
          informations relatives à des animaux. Le champ `naisseur` de la source est écarté \
@@ -166,7 +174,7 @@ pub async fn meta(State(etat): State<EtatPartage>) -> Result<Response, Erreur> {
     json(&Meta {
         version_api: crate::VERSION,
         jeu_de_donnees: &etat.store.meta,
-        remarques: remarques(&etat.store),
+        remarques: remarques(&etat.store, etat.extractions.publie(etat.store.empreinte())),
     })
 }
 
