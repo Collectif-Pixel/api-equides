@@ -777,9 +777,9 @@ pub mod tests {
                 .collect::<Vec<_>>(),
             vec!["ELDORÀDO"]
         );
-        assert!(
-            s.enfants(s.row_by_id("EEEEEEEEEEEEEEEEEEEEEA").unwrap())
-                .is_empty()
+        assert_eq!(
+            s.enfants(s.row_by_id("EEEEEEEEEEEEEEEEEEEEEA").unwrap()),
+            &[] as &[u32]
         );
     }
 
